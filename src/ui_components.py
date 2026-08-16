@@ -451,3 +451,4 @@ def RenderDataTable(df: pd.DataFrame, lang: str):
         use_container_width=True
     )
 
+

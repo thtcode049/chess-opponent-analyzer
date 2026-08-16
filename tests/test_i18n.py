@@ -22,3 +22,4 @@ def test_t_function_english():
 def test_missing_key_fallback():
     res = t("non_existent_key_xyz", lang="en")
     assert res == "non_existent_key_xyz"
+
