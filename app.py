@@ -1294,29 +1294,76 @@ elif active_page in ["Profile", "Performance"]:
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
-        # 6. SIMPLIFICATION & MIDDLEGAME HABITS
-        col_simp, col_habit = st.columns(2)
+        # 6. PLAYING STYLE PROFILE & SIMPLIFICATION
+        style_prof = deep_profile.get("style_profile", {})
+        scores = style_prof.get("scores", {})
+        raw_m = style_prof.get("raw_metrics", {})
+        evidence_list = style_prof.get("evidence", [])
 
-        with col_simp:
-            with st.container(border=True):
-                st.markdown("##### 👑 Simplification (Đổi Hậu)")
+        with st.container(border=True):
+            st.markdown(f"### 🏆 {t('style_section_title', lang=current_lang)}")
+            st.caption(t("style_section_subtitle", lang=current_lang))
+            st.markdown("<div style='margin-bottom:12px;'></div>", unsafe_allow_html=True)
+
+            # Top Summary Cards: Primary, Secondary, Confidence
+            st_c1, st_c2, st_c3 = st.columns([4, 4, 3])
+            with st_c1:
+                st.markdown(f"**{t('primary_style_label', lang=current_lang)}**")
+                p_icon = style_prof.get("primary_icon", "♟️")
+                p_name = style_prof.get("primary_style", "N/A")
+                p_score = style_prof.get("primary_score", 0.0)
+                st.markdown(f"<div style='font-size:18px; font-weight:800; color:#1E293B;'>{p_icon} {p_name} <span style='color:#4F46E5;'>({p_score}%)</span></div>", unsafe_allow_html=True)
+                if style_prof.get("archetype"):
+                    st.caption(f"{t('style_archetype_label', lang=current_lang)}: *{style_prof['archetype']}*")
+
+            with st_c2:
+                st.markdown(f"**{t('secondary_style_label', lang=current_lang)}**")
+                s_icon = style_prof.get("secondary_icon", "♟️")
+                s_name = style_prof.get("secondary_style", "N/A")
+                s_score = style_prof.get("secondary_score", 0.0)
+                st.markdown(f"<div style='font-size:17px; font-weight:700; color:#475569;'>{s_icon} {s_name} <span style='color:#64748B;'>({s_score}%)</span></div>", unsafe_allow_html=True)
+
+            with st_c3:
+                st.markdown(f"**{t('style_confidence_label', lang=current_lang)}**")
+                conf_badge = style_prof.get("confidence_badge", "Medium")
+                conf_col = style_prof.get("confidence_color", "#EAB308")
+                st.markdown(f"<div style='font-size:15px; font-weight:800; color:{conf_col}; padding-top:4px;'>● {conf_badge}</div>", unsafe_allow_html=True)
+
+            st.markdown("<hr style='margin:14px 0 14px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
+
+            # Style Dimension Bars & Style Evidence
+            dim_col1, dim_col2 = st.columns(2)
+
+            with dim_col1:
+                st.markdown(f"**{t('style_dimensions_title', lang=current_lang)}**")
+                dim_items = [
+                    (t("dim_complexity", lang=current_lang), raw_m.get("complexity_index", 50.0)),
+                    (t("dim_volatility", lang=current_lang), raw_m.get("volatility_score", 50.0)),
+                    (t("dim_queen_retention", lang=current_lang), raw_m.get("queen_retention_25", 50.0)),
+                    (t("dim_simplification", lang=current_lang), raw_m.get("simplification_rate", 40.0)),
+                    (t("dim_prophylaxis", lang=current_lang), raw_m.get("prophylaxis_rate", 30.0)),
+                    (t("dim_resilience", lang=current_lang), raw_m.get("resilience_rate", 50.0)),
+                ]
+                for d_label, d_val in dim_items:
+                    d_c1, d_c2 = st.columns([6, 2])
+                    d_c1.markdown(f"<span style='font-size:12.5px; font-weight:600;'>{d_label}</span>", unsafe_allow_html=True)
+                    d_c2.markdown(f"<span style='font-size:12.5px; font-weight:800; color:#4F46E5;'>{d_val}</span>", unsafe_allow_html=True)
+                    st.progress(float(d_val) / 100.0)
+
+            with dim_col2:
+                st.markdown(f"**{t('style_evidence_title', lang=current_lang)}**")
+                if evidence_list:
+                    for ev_item in evidence_list:
+                        st.markdown(f"• <span style='font-size:13px; color:#334155; line-height:1.5;'>{ev_item}</span>", unsafe_allow_html=True)
+                else:
+                    st.caption("Chưa có đủ dữ liệu để trích xuất bằng chứng." if current_lang == "vi" else "Insufficient data to extract evidence.")
+
+                st.markdown("<div style='margin-bottom:10px;'></div>", unsafe_allow_html=True)
+                
+                # Simplification Quick Insight
                 simp = deep_profile.get("simplification", {})
-                on = simp.get("queens_on", {})
-                off = simp.get("queens_off", {})
-
-                s1, s2 = st.columns(2)
-                s1.metric("Queens ON", f"{on.get('score_pct', 0.0)}%", f"{on.get('games_count', 0)} ván" if current_lang == "vi" else f"{on.get('games_count', 0)} games")
-                s2.metric("Queens OFF", f"{off.get('score_pct', 0.0)}%", f"{off.get('games_count', 0)} ván" if current_lang == "vi" else f"{off.get('games_count', 0)} games")
-
                 if simp.get("recommendation"):
-                    st.info(simp["recommendation"])
-
-        with col_habit:
-            with st.container(border=True):
-                st.markdown("##### 🎯 Middlegame Habits (Nước 12–25)")
-                habits = deep_profile.get("habits", {})
-                st.markdown(f"**Top Habit**: `{habits.get('top_habit', 'N/A')}` ({habits.get('top_pct', 0.0)}%)")
-                st.caption(habits.get("observation", ""))
+                    st.info(f"👑 **Simplification**: {simp['recommendation']}")
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
@@ -1596,15 +1643,31 @@ elif active_page == "Import":
             st.markdown("#### 🌐 Fetch từ Lichess / Chess.com")
             platform = st.selectbox(t("platform_select", lang=current_lang), options=["Lichess", "Chess.com"], key="import_page_platform_select")
             online_user = st.text_input(t("username_label", lang=current_lang), placeholder=t("username_placeholder", lang=current_lang), key="import_page_user_input")
-            max_games = st.number_input(t("max_games_label", lang=current_lang), min_value=10, max_value=300, value=50, step=10, key="import_page_max_games")
+            max_games_input = st.number_input(
+                t("max_games_label", lang=current_lang),
+                min_value=1,
+                max_value=300,
+                value=None,
+                step=10,
+                placeholder=t("max_games_placeholder", lang=current_lang),
+                key="import_page_max_games"
+            )
+            max_games = int(max_games_input) if max_games_input is not None else 50
+            selected_game_types = st.multiselect(
+                t("game_type_label", lang=current_lang),
+                options=["Bullet", "Blitz", "Rapid", "Classical", "Daily / Correspondence"],
+                default=[],
+                help=t("game_type_help", lang=current_lang),
+                key="import_page_game_types"
+            )
 
             if st.button(t("btn_fetch_games", lang=current_lang), type="primary", use_container_width=True, key="import_page_fetch_online_btn"):
                 if online_user.strip():
                     with st.spinner(t("fetching_spinner", lang=current_lang)):
                         if platform == "Lichess":
-                            pgn_bytes, err = fetch_lichess_games(online_user, max_games)
+                            pgn_bytes, err = fetch_lichess_games(online_user, max_games, perf_types=selected_game_types)
                         else:
-                            pgn_bytes, err = fetch_chesscom_games(online_user, max_games)
+                            pgn_bytes, err = fetch_chesscom_games(online_user, max_games, perf_types=selected_game_types)
 
                         if err:
                             st.error(err)

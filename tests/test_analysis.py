@@ -14,7 +14,6 @@ from src.analysis.phase_analysis import classify_phase, analyze_phase_performanc
 from src.analysis.pawn_structure import detect_pawn_structure, analyze_structural_performance
 from src.analysis.game_dynamics import analyze_game_dynamics
 from src.analysis.simplification import analyze_simplification_performance
-from src.analysis.habit_analysis import analyze_middlegame_habits
 from src.analysis.confidence import get_confidence_level
 from src.match_prep import generate_actionable_match_preparation
 

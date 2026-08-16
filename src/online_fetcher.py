@@ -8,10 +8,62 @@ tương tự như openingtree.com.
 import urllib.request
 import urllib.parse
 import json
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 
 
-def fetch_lichess_games(username: str, max_games: int = 100) -> Tuple[Optional[bytes], Optional[str]]:
+def _normalize_lichess_perf_types(perf_types: Optional[List[str]]) -> Optional[str]:
+    """Map selection strings to Lichess perfType API parameters."""
+    if not perf_types:
+        return None
+    
+    mapping = {
+        "bullet": "bullet",
+        "blitz": "blitz",
+        "rapid": "rapid",
+        "classical": "classical",
+        "daily": "correspondence",
+        "correspondence": "correspondence",
+        "daily / correspondence": "correspondence",
+        "ultrabullet": "ultraBullet",
+    }
+    
+    selected = set()
+    for pt in perf_types:
+        key = str(pt).strip().lower()
+        if key in mapping:
+            selected.add(mapping[key])
+        else:
+            selected.add(key)
+            
+    return ",".join(sorted(selected)) if selected else None
+
+
+def _normalize_chesscom_time_classes(perf_types: Optional[List[str]]) -> Optional[set]:
+    """Map selection strings to Chess.com time_class values."""
+    if not perf_types:
+        return None
+    
+    target_set = set()
+    for pt in perf_types:
+        key = str(pt).strip().lower()
+        if key in ("bullet", "ultrabullet"):
+            target_set.add("bullet")
+        elif key == "blitz":
+            target_set.add("blitz")
+        elif key == "rapid":
+            target_set.add("rapid")
+        elif key == "classical":
+            target_set.add("rapid")
+            target_set.add("classical")
+        elif key in ("daily", "correspondence", "daily / correspondence"):
+            target_set.add("daily")
+        else:
+            target_set.add(key)
+            
+    return target_set if target_set else None
+
+
+def fetch_lichess_games(username: str, max_games: int = 100, perf_types: Optional[List[str]] = None) -> Tuple[Optional[bytes], Optional[str]]:
     """
     Tải PGN ván đấu từ Lichess API.
     Endpoint: https://lichess.org/api/games/user/{username}
@@ -21,6 +73,9 @@ def fetch_lichess_games(username: str, max_games: int = 100) -> Tuple[Optional[b
         return None, "Tên tài khoản Lichess không được để trống."
 
     url = f"https://lichess.org/api/games/user/{urllib.parse.quote(clean_user)}?max={max_games}&opening=true"
+    perf_param = _normalize_lichess_perf_types(perf_types)
+    if perf_param:
+        url += f"&perfType={urllib.parse.quote(perf_param)}"
     
     headers = {
         "Accept": "application/x-chess-pgn",
@@ -45,7 +100,7 @@ def fetch_lichess_games(username: str, max_games: int = 100) -> Tuple[Optional[b
         return None, f"Không thể kết nối tới Lichess: {e}"
 
 
-def fetch_chesscom_games(username: str, max_games: int = 100) -> Tuple[Optional[bytes], Optional[str]]:
+def fetch_chesscom_games(username: str, max_games: int = 100, perf_types: Optional[List[str]] = None) -> Tuple[Optional[bytes], Optional[str]]:
     """
     Tải PGN ván đấu từ Chess.com API.
     1. Lấy danh sách Monthly Archives: https://api.chess.com/pub/player/{username}/games/archives
@@ -59,6 +114,8 @@ def fetch_chesscom_games(username: str, max_games: int = 100) -> Tuple[Optional[
     headers = {
         "User-Agent": "ChessOpponentAnalyzer/1.0 (contact: admin@example.com)"
     }
+
+    allowed_time_classes = _normalize_chesscom_time_classes(perf_types)
 
     try:
         req = urllib.request.Request(archives_url, headers=headers)
@@ -86,6 +143,10 @@ def fetch_chesscom_games(username: str, max_games: int = 100) -> Tuple[Optional[
                     month_games = month_data.get("games", [])
                     for g in reversed(month_games):
                         if "pgn" in g:
+                            if allowed_time_classes is not None:
+                                time_class = g.get("time_class", "").lower()
+                                if time_class not in allowed_time_classes:
+                                    continue
                             pgn_list.append(g["pgn"])
                             games_collected += 1
                             if games_collected >= max_games:
@@ -103,3 +164,4 @@ def fetch_chesscom_games(username: str, max_games: int = 100) -> Tuple[Optional[
         return None, f"Lỗi Chess.com API (HTTP {e.code}): {e.reason}"
     except Exception as e:
         return None, f"Không thể kết nối tới Chess.com: {e}"
+

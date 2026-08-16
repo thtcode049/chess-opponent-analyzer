@@ -249,15 +249,17 @@ def generate_actionable_match_preparation(
 ) -> Dict[str, Any]:
     """
     Chuyển đổi các phát hiện từ Deep Opponent Profile thành Kế hoạch Thi đấu Ngắn gọn & Có thể Hành động (Decision Support Match Prep).
+    Kết hợp đa chiều: Repertoire, Structures, Phases, Dynamics, Simplification, và Playing Style Profile.
     """
     repertoire = deep_profile.get("repertoire", {})
     structures = deep_profile.get("structures", {})
     phases = deep_profile.get("phases", {})
     dynamics = deep_profile.get("dynamics", {})
     simplification = deep_profile.get("simplification", {})
+    style_profile = deep_profile.get("style_profile", {})
     critical_positions = deep_profile.get("critical_positions", [])
 
-    # A. Khai cuộc Mạnh nhất & Yếu nhất của đối thủ (Chỉ lấy 1 dòng cho mỗi loại)
+    # A. Khai cuộc Mạnh nhất & Yếu nhất của đối thủ
     all_openings = repertoire.get("all_openings", [])
     target_rep = repertoire.get("black_repertoire" if user_color == "white" else "white_repertoire", all_openings)
 
@@ -271,39 +273,105 @@ def generate_actionable_match_preparation(
     # C. Vulnerability Phase
     weakest_phase = phases.get("weakest_phase")
 
-    # D. Game Dynamics Recommendations
+    # D. Game Dynamics & Style Profile
     throw_rate = dynamics.get("throw_rate", 0.0)
     resilience_rate = dynamics.get("resilience_rate", 0.0)
+    primary_style_key = style_profile.get("primary_key", "")
+    scores = style_profile.get("scores", {})
+    tactical_score = scores.get("tactical", 50.0)
+    positional_score = scores.get("positional", 50.0)
+    solid_score = scores.get("solid", 50.0)
+    universal_score = scores.get("universal", 50.0)
 
     # E. Final Game Plan (PLAY, TARGET, AVOID)
     play_recs = []
     target_recs = []
     avoid_recs = []
 
-    # PLAY Recommendations
+    # --- 1. PLAY Recommendations ---
     if weakest_phase and weakest_phase.get("phase") == "endgame":
-        play_recs.append("Đưa trận đấu về Cờ tàn (Endgame) khi vị trí thuận lợi vì đối thủ sụt giảm độ chính xác rõ rệt." if lang == "vi" else "Simplify into technical Endgame when position is favorable due to opponent's accuracy drop.")
+        play_recs.append(
+            "Đưa trận đấu về Cờ tàn (Endgame) khi vị trí thuận lợi vì đối thủ sụt giảm độ chính xác rõ rệt."
+            if lang == "vi" else
+            "Simplify into technical Endgame when position is favorable due to opponent's accuracy drop."
+        )
     elif weakest_phase and weakest_phase.get("phase") == "middlegame":
-        play_recs.append("Duy trì sức ép phức tạp trong Trung cuộc." if lang == "vi" else "Maintain complex middlegame pressure.")
+        play_recs.append(
+            "Duy trì sức ép phức tạp trong Trung cuộc để khai thác điểm yếu xử lý trung cuộc của đối thủ."
+            if lang == "vi" else
+            "Maintain complex middlegame pressure to exploit opponent's middlegame inaccuracy."
+        )
     else:
-        play_recs.append("Thi đấu chắc chắn, phát triển quân hài hòa và tuân thủ nguyên tắc." if lang == "vi" else "Play solid positional chess and focus on harmonious piece development.")
+        play_recs.append(
+            "Thi đấu chắc chắn, phát triển quân hài hòa và tuân thủ nguyên tắc vị trí."
+            if lang == "vi" else
+            "Play solid positional chess and focus on harmonious piece development."
+        )
+
+    # Đề xuất bổ trợ từ Style Profile
+    if primary_style_key == "tactical" and tactical_score >= 65.0:
+        off_res = simplification.get("queens_off", {})
+        if off_res.get("score_pct", 50.0) <= 45.0:
+            play_recs.append(
+                "Khóa chặt cấu trúc Tốt trung tâm và chủ động đổi Hậu sớm để triệt tiêu hỏa lực tấn công của đối thủ."
+                if lang == "vi" else
+                "Lock central pawn structures and look for early queen trades to neutralize opponent's attacking momentum."
+            )
+        else:
+            play_recs.append(
+                "Ưu tiên các phương án làm giảm độ biến động thế cờ (Low Volatility), tránh để đối thủ mở toang trung lộ."
+                if lang == "vi" else
+                "Prioritize variations that minimize tactical volatility and prevent central line openings."
+            )
+    elif primary_style_key == "positional" and positional_score >= 65.0:
+        play_recs.append(
+            "Chủ động phá vỡ cấu trúc Tốt và mở cột giao tranh, không đánh thụ động để tránh bị đối thủ bóp nghẹt không gian."
+            if lang == "vi" else
+            "Actively challenge pawn structures and open files to avoid being slowly out-maneuvered in passive positions."
+        )
+    elif primary_style_key == "solid" and solid_score >= 65.0:
+        play_recs.append(
+            "Duy trì sức ép kiên nhẫn, không vội vàng dồn toàn lực công phá mạo hiểm dễ dính bẫy phản công."
+            if lang == "vi" else
+            "Maintain steady, well-coordinated pressure without overextending into counterattack traps."
+        )
 
     if throw_rate >= 25.0:
-        play_recs.append(f"Duy trì kiên trì khi bị lép vế vì đối thủ có tỷ lệ quăng lợi thế cao ({throw_rate}% throw rate)." if lang == "vi" else f"Stay resilient when behind; opponent shows a high advantage throw rate ({throw_rate}%).")
+        play_recs.append(
+            f"Duy trì kiên trì khi bị lép vế vì đối thủ có tỷ lệ quăng lợi thế cao ({throw_rate}% throw rate)."
+            if lang == "vi" else
+            f"Stay resilient when behind; opponent shows a high advantage throw rate ({throw_rate}%)."
+        )
 
-    # TARGET Recommendations
+    # --- 2. TARGET Recommendations ---
     if target_struct:
-        target_recs.append(f"Chủ động lái trận đấu về cấu trúc {target_struct['name']} (đối thủ chỉ đạt {target_struct['score_pct']}% score)." if lang == "vi" else f"Aim for {target_struct['name']} structure (opponent scores only {target_struct['score_pct']}%).")
-    
-    if weakest_op:
-        target_recs.append(f"Khai thác hệ thống {weakest_op['name']} (đối thủ đạt {weakest_op['score_pct']}% score)." if lang == "vi" else f"Target {weakest_op['name']} (opponent scores {weakest_op['score_pct']}%).")
+        target_recs.append(
+            f"Chủ động lái trận đấu về cấu trúc {target_struct['name']} (đối thủ chỉ đạt {target_struct['score_pct']}% score)."
+            if lang == "vi" else
+            f"Aim for {target_struct['name']} structure (opponent scores only {target_struct['score_pct']}%)."
+        )
 
-    # AVOID Recommendations
+    if weakest_op:
+        target_recs.append(
+            f"Khai thác hệ thống {weakest_op['name']} (đối thủ đạt {weakest_op['score_pct']}% score)."
+            if lang == "vi" else
+            f"Target {weakest_op['name']} (opponent scores {weakest_op['score_pct']}%)."
+        )
+
+    # --- 3. AVOID Recommendations ---
     if strongest_op and strongest_op.get("score_pct", 0) >= 55.0:
-        avoid_recs.append(f"Tránh đi vào biến chuẩn bị mạnh nhất của đối thủ: {strongest_op['name']} ({strongest_op['score_pct']}% score) trừ khi đã chuẩn bị sẵn." if lang == "vi" else f"Avoid opponent's strongest line: {strongest_op['name']} ({strongest_op['score_pct']}% score) unless specifically prepared.")
+        avoid_recs.append(
+            f"Tránh đi vào biến chuẩn bị mạnh nhất của đối thủ: {strongest_op['name']} ({strongest_op['score_pct']}% score) trừ khi đã chuẩn bị kỹ."
+            if lang == "vi" else
+            f"Avoid opponent's strongest line: {strongest_op['name']} ({strongest_op['score_pct']}% score) unless specifically prepared."
+        )
 
     if not avoid_recs:
-        avoid_recs.append("Tránh các phương án chiến thuật bẫy rủi ro cao chưa chuẩn bị kỹ." if lang == "vi" else "Avoid unprepared high-risk tactical lines.")
+        avoid_recs.append(
+            "Tránh các phương án chiến thuật bẫy rủi ro cao chưa chuẩn bị kỹ."
+            if lang == "vi" else
+            "Avoid unprepared high-risk tactical lines."
+        )
 
     return {
         "strongest_opening": strongest_op,
@@ -312,9 +380,11 @@ def generate_actionable_match_preparation(
         "vulnerability_phase": weakest_phase,
         "throw_rate": throw_rate,
         "resilience_rate": resilience_rate,
+        "style_profile": style_profile,
         "play_plan": play_recs,
         "target_plan": target_recs,
         "avoid_plan": avoid_recs,
         "training_positions": critical_positions[:3]
     }
+
 
