@@ -4,10 +4,19 @@ Game Phase Classification & Performance Analysis Module
 Chức năng: Phân loại giai đoạn ván đấu (Opening, Middlegame, Endgame) và đo lường độ chính xác (ACPL) từng giai đoạn.
 """
 
+import math
 from typing import List, Dict, Any, Optional
 import chess
 
 from src.analysis.confidence import format_confidence_label
+
+
+def calculate_phase_accuracy(avg_acpl: float) -> float:
+    """Tính tỷ lệ chính xác Accuracy % từ mức centipawn loss trung bình (ACPL)."""
+    if avg_acpl <= 0:
+        return 100.0
+    acc = 100.0 * math.exp(-0.005 * avg_acpl)
+    return round(max(0.0, min(100.0, acc)), 1)
 
 
 def classify_phase(board: chess.Board, move_number: int) -> str:
@@ -57,12 +66,30 @@ def analyze_phase_performance(
             phases_data[phase]["games"].add(g_idx)
             if cpl >= 100.0:
                 phases_data[phase]["mistakes"] += 1
+    else:
+        # Fallback: Phân loại giai đoạn và đếm số nước từ danh sách ván đấu
+        for g_idx, game in enumerate(filtered_games or []):
+            moves = game.get("moves", [])
+            if not moves:
+                continue
+            board = chess.Board()
+            for ply, san in enumerate(moves):
+                try:
+                    move_num = (ply // 2) + 1
+                    phase = classify_phase(board, move_num)
+                    phases_data[phase]["moves_count"] += 1
+                    phases_data[phase]["games"].add(g_idx)
+                    move_obj = board.parse_san(san)
+                    board.push(move_obj)
+                except Exception:
+                    break
 
     summary = {}
     for phase_name in ["opening", "middlegame", "endgame"]:
         data = phases_data[phase_name]
         cpls = data["cpls"]
         avg_acpl = round(sum(cpls) / len(cpls), 1) if cpls else 0.0
+        accuracy_pct = calculate_phase_accuracy(avg_acpl) if cpls else None
 
         sorted_cpls = sorted(cpls)
         n = len(sorted_cpls)
@@ -75,9 +102,10 @@ def analyze_phase_performance(
             "phase": phase_name,
             "games_count": sample_games,
             "moves_count": data["moves_count"],
-            "avg_acpl": avg_acpl,
+            "avg_acpl": avg_acpl if cpls else 0.0,
             "median_acpl": median_acpl,
             "mistakes_count": data["mistakes"],
+            "accuracy_pct": accuracy_pct,
             "confidence": conf
         }
 

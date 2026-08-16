@@ -90,7 +90,7 @@ def analyze_structural_performance(
 ) -> Dict[str, Any]:
     """
     Phân tích hiệu suất thi đấu của đối thủ theo từng dạng Cấu trúc Tốt.
-    Mỗi ván đấu được đếm 1 LẦN DUY NHẤT cho mỗi cấu trúc mà ván đó đi qua.
+    Mỗi ván đấu được đếm 1 LẦN DUY NHẤT cho mỗi cấu trúc mà ván đó đi qua trong nước 8 -> 15.
     """
     struct_stats: Dict[str, Dict[str, Any]] = {}
 
@@ -113,8 +113,10 @@ def analyze_structural_performance(
             except Exception:
                 break
 
-            # Chỉ xét cấu trúc Tốt từ nước 8 trở đi
-            if ply >= 14:
+            move_number = (ply // 2) + 1
+
+            # Chỉ xét cấu trúc Tốt xuất hiện trong khoảng nước 8 đến nước 15 (ply 14 -> 29)
+            if 14 <= ply <= 29:
                 struct_res = detect_pawn_structure(board)
                 st_name = struct_res["name"]
                 if st_name != "Standard Structure" and st_name not in seen_in_game:
@@ -128,17 +130,35 @@ def analyze_structural_performance(
                             "wins": 0,
                             "draws": 0,
                             "losses": 0,
-                            "cpls": []
+                            "cpls": [],
+                            "formation_moves": [],
+                            "games": []
                         }
 
                     stat = struct_stats[st_name]
                     stat["games_count"] += 1
+                    stat["formation_moves"].append(move_number)
                     if is_win:
                         stat["wins"] += 1
                     elif is_draw:
                         stat["draws"] += 1
                     elif is_loss:
                         stat["losses"] += 1
+
+                    stat["games"].append({
+                        "game_index": g_idx,
+                        "formation_move": move_number,
+                        "white": game.get("white", "Unknown"),
+                        "black": game.get("black", "Unknown"),
+                        "result": result,
+                        "opening": game.get("opening", "Unknown Opening"),
+                        "date": game.get("date", ""),
+                        "site": game.get("site", ""),
+                        "player_color": player_color,
+                        "is_win": is_win,
+                        "is_draw": is_draw,
+                        "is_loss": is_loss
+                    })
 
     # Kết hợp CPL từ move_evaluations nếu có
     if move_evaluations:
@@ -161,6 +181,9 @@ def analyze_structural_performance(
         avg_acpl = round(sum(cpls) / len(cpls), 1) if cpls else 0.0
         conf = format_confidence_label(g_count, lang=lang)
 
+        formation_moves = data["formation_moves"]
+        typical_move = round(sum(formation_moves) / len(formation_moves)) if formation_moves else 12
+
         result_list.append({
             "name": name,
             "structure_key": data["structure_key"],
@@ -170,7 +193,9 @@ def analyze_structural_performance(
             "losses": l,
             "score_pct": score_pct,
             "avg_acpl": avg_acpl,
-            "confidence": conf
+            "confidence": conf,
+            "typical_formation_move": typical_move,
+            "games": data["games"]
         })
 
     result_list.sort(key=lambda x: x["games_count"], reverse=True)

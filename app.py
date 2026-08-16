@@ -111,6 +111,25 @@ if "cached_deep_profile" not in st.session_state:
 if "cached_profile_lang" not in st.session_state:
     st.session_state.cached_profile_lang = None
 
+# Pawn Structure Explorer Mode State
+if "selected_structure" not in st.session_state:
+    st.session_state.selected_structure = None
+
+if "structure_games" not in st.session_state:
+    st.session_state.structure_games = []
+
+if "selected_structure_game" not in st.session_state:
+    st.session_state.selected_structure_game = None
+
+if "structure_explorer_filter" not in st.session_state:
+    st.session_state.structure_explorer_filter = "All"
+
+if "skip_board_reset_on_nav" not in st.session_state:
+    st.session_state.skip_board_reset_on_nav = False
+
+if "previous_nav_page" not in st.session_state:
+    st.session_state.previous_nav_page = st.session_state.active_nav_page
+
 # Áp dụng Global Design System CSS & Theme Mode (Light Mode)
 apply_global_styles(theme_mode="light")
 
@@ -199,6 +218,7 @@ def load_single_game_onto_board(game_info: dict):
         except Exception:
             break
     st.session_state.full_analysis_line = list(st.session_state.move_history)
+    st.session_state.skip_board_reset_on_nav = True
     st.session_state.active_nav_page = "Analyze"
     st.rerun()
 
@@ -365,6 +385,7 @@ def load_opening_onto_board(opening_name: str, filtered_games: list):
         except Exception:
             break
     st.session_state.full_analysis_line = list(st.session_state.move_history)
+    st.session_state.skip_board_reset_on_nav = True
     st.session_state.active_nav_page = "Analyze"
     st.rerun()
 
@@ -375,54 +396,51 @@ def load_fen_onto_board(fen_str: str):
         st.session_state.chess_board = chess.Board(fen_str)
         st.session_state.move_history = []
         st.session_state.full_analysis_line = []
+        st.session_state.skip_board_reset_on_nav = True
         st.session_state.active_nav_page = "Analyze"
         st.rerun()
     except Exception as e:
         st.error(f"Lỗi nạp FEN: {e}")
 
 
-def load_pawn_structure_onto_board(structure_name: str, filtered_games: list):
+def load_pawn_structure_onto_board(structure_info: dict):
     """
-    Nạp vị trí thế cờ đại diện cho Cấu trúc Tốt được chọn lên bàn cờ tương tác và mở trang Analyze Games.
+    Kích hoạt Structure Explorer Mode cho Cấu trúc Tốt được chọn và chuyển sang trang Analyze.
+    Đảm bảo danh sách ván đấu luôn được nạp đầy đủ (tính lại nếu cache cũ bị thiếu).
     """
-    from src.analysis.pawn_structure import detect_pawn_structure
-    for game in filtered_games:
-        moves = game.get("moves", [])
-        if not moves:
-            continue
-        board = chess.Board()
-        history = []
-        for ply, san in enumerate(moves):
-            try:
-                move_obj = board.parse_san(san)
-                board.push(move_obj)
-                history.append(san)
-                if ply >= 14:
-                    st_res = detect_pawn_structure(board)
-                    if st_res["name"] == structure_name:
-                        st.session_state.chess_board = board.copy()
-                        st.session_state.move_history = list(history)
-                        st.session_state.full_analysis_line = list(history)
-                        st.session_state.active_nav_page = "Analyze"
-                        st.rerun()
-            except Exception:
+    struct_name = structure_info.get("name", "Pawn Structure")
+    games_list = structure_info.get("games", [])
+    expected_count = structure_info.get("games_count", 0)
+
+    # Nếu list games rỗng hoặc thiếu games so với games_count, lập tức tính lại từ cached_filtered_games
+    if (not games_list or len(games_list) < expected_count) and st.session_state.get("cached_filtered_games"):
+        from src.analysis.pawn_structure import analyze_structural_performance
+        fresh_struct_res = analyze_structural_performance(
+            st.session_state.cached_filtered_games,
+            move_evaluations=st.session_state.get("cached_move_evaluations"),
+            lang=st.session_state.get("language", "vi")
+        )
+        target_name_lower = str(struct_name).strip().lower()
+        target_key_lower = str(structure_info.get("structure_key", "")).strip().lower()
+
+        for s_item in fresh_struct_res.get("structures", []):
+            s_name = s_item.get("name", "").strip().lower()
+            s_key = s_item.get("structure_key", "").strip().lower()
+
+            if (s_name and (s_name == target_name_lower or target_name_lower in s_name or s_name in target_name_lower)) or \
+               (s_key and s_key == target_key_lower):
+                games_list = s_item.get("games", [])
+                if st.session_state.get("cached_deep_profile"):
+                    st.session_state.cached_deep_profile["structures"] = fresh_struct_res
                 break
 
-    # Fallback if no specific ply >= 14 match was found
-    if filtered_games and filtered_games[0].get("moves"):
-        first_game_moves = filtered_games[0].get("moves", [])[:15]
-        st.session_state.chess_board.reset()
-        st.session_state.move_history = []
-        for m in first_game_moves:
-            try:
-                move_obj = st.session_state.chess_board.parse_san(m)
-                st.session_state.chess_board.push(move_obj)
-                st.session_state.move_history.append(m)
-            except Exception:
-                break
-        st.session_state.full_analysis_line = list(st.session_state.move_history)
-        st.session_state.active_nav_page = "Analyze"
-        st.rerun()
+    st.session_state.selected_structure = struct_name
+    st.session_state.structure_games = games_list
+    st.session_state.selected_structure_game = None
+    st.session_state.structure_explorer_filter = "All"
+    st.session_state.skip_board_reset_on_nav = True
+    st.session_state.active_nav_page = "Analyze"
+    st.rerun()
 
 
 @st.fragment
@@ -773,6 +791,24 @@ with st.sidebar:
 # RENDER ACTIVE PAGE VIEW
 active_page = st.session_state.active_nav_page
 
+# Tự động xóa lịch sử ván đấu & reset bàn cờ khi chuyển giữa các trang khác nhau
+if "previous_nav_page" not in st.session_state:
+    st.session_state.previous_nav_page = active_page
+
+if active_page != st.session_state.previous_nav_page:
+    if not st.session_state.get("skip_board_reset_on_nav", False):
+        st.session_state.chess_board.reset()
+        st.session_state.move_history = []
+        st.session_state.full_analysis_line = []
+        st.session_state.last_board_timestamp = 0
+        if active_page != "Analyze":
+            st.session_state.selected_structure = None
+            st.session_state.structure_games = []
+            st.session_state.selected_structure_game = None
+
+    st.session_state.skip_board_reset_on_nav = False
+    st.session_state.previous_nav_page = active_page
+
 # ==============================================================================
 # VIEW 01: DASHBOARD PAGE
 # ==============================================================================
@@ -935,7 +971,114 @@ elif active_page == "Analyze":
             st.session_state.active_nav_page = "Import"
             st.rerun()
     else:
+        # MODE B: STRUCTURE EXPLORER HEADER BANNER
+        if st.session_state.selected_structure is not None:
+            struct_name = st.session_state.selected_structure
+            struct_games = st.session_state.structure_games or []
+
+            with st.container(border=True):
+                head_col1, head_col2 = st.columns([4.5, 1.5])
+                with head_col1:
+                    st.markdown(f"### 🧩 STRUCTURE EXPLORER: **{struct_name}**")
+                    st.caption(f"Đang xem **{len(struct_games)}** ván đấu thực tế có cấu trúc Tốt này (Move 8–15)." if current_lang == "vi" else f"Exploring **{len(struct_games)}** actual games formed with this structure (Move 8–15).")
+                with head_col2:
+                    if st.button("⬅️ " + ("Trở về Phân tích Thường" if current_lang == "vi" else "Back to Normal Analysis"), use_container_width=True, key="btn_exit_struct_explorer"):
+                        st.session_state.selected_structure = None
+                        st.session_state.structure_games = []
+                        st.session_state.selected_structure_game = None
+                        st.rerun()
+
+            st.markdown("<div style='margin-bottom:12px;'></div>", unsafe_allow_html=True)
+
+        # Render Interactive Chessboard & Move History
         render_analysis_section(st.session_state.cached_fen_map, selected_player, current_lang)
+
+        # MODE B: STRUCTURE GAMES LIST PANEL
+        if st.session_state.selected_structure is not None:
+            st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
+            struct_name = st.session_state.selected_structure
+            struct_games = st.session_state.structure_games or []
+
+            with st.container(border=True):
+                st.markdown(f"### 📋 {('Danh sách ván đấu có cấu trúc' if current_lang == 'vi' else 'Games with')} **{struct_name}** ({len(struct_games)} {('ván' if current_lang == 'vi' else 'games')})")
+
+                filter_opts = {
+                    "All": "Tất cả" if current_lang == "vi" else "All",
+                    "Wins": "Ván Thắng" if current_lang == "vi" else "Wins",
+                    "Draws": "Ván Hòa" if current_lang == "vi" else "Draws",
+                    "Losses": "Ván Thua" if current_lang == "vi" else "Losses",
+                }
+
+                selected_filter = st.radio(
+                    "Lọc kết quả ván đấu:" if current_lang == "vi" else "Filter game results:",
+                    options=list(filter_opts.keys()),
+                    format_func=lambda x: filter_opts[x],
+                    horizontal=True,
+                    key="struct_games_filter_radio"
+                )
+
+                filtered_struct_games = []
+                for g in struct_games:
+                    if selected_filter == "Wins" and not g.get("is_win"):
+                        continue
+                    if selected_filter == "Draws" and not g.get("is_draw"):
+                        continue
+                    if selected_filter == "Losses" and not g.get("is_loss"):
+                        continue
+                    filtered_struct_games.append(g)
+
+                st.markdown("<hr style='margin:8px 0 12px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
+
+                if not filtered_struct_games:
+                    st.info("Không có ván đấu nào khớp với bộ lọc." if current_lang == "vi" else "No games match the selected filter.")
+                else:
+                    gh1, gh2, gh3, gh4 = st.columns([4, 3, 2, 2])
+                    gh1.markdown("**Trắng vs Đen**" if current_lang == "vi" else "**White vs Black**")
+                    gh2.markdown("**Khai cuộc / Kết quả**" if current_lang == "vi" else "**Opening / Result**")
+                    gh3.markdown("**Hình thành**" if current_lang == "vi" else "**Formed**")
+                    gh4.markdown("**Thao tác**" if current_lang == "vi" else "**Action**")
+
+                    st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
+
+                    for idx, g_info in enumerate(filtered_struct_games):
+                        gc1, gc2, gc3, gc4 = st.columns([4, 3, 2, 2])
+                        g_idx = g_info.get("game_index", idx)
+                        form_move = g_info.get("formation_move", "?")
+                        w_name = g_info.get("white", "White")
+                        b_name = g_info.get("black", "Black")
+                        res = g_info.get("result", "*")
+                        op_name = g_info.get("opening", "Unknown Opening")
+
+                        if g_info.get("is_win"):
+                            res_badge = f"<span style='color:{COLOR_WIN}; font-weight:700;'>{res} (Thắng)</span>" if current_lang == "vi" else f"<span style='color:{COLOR_WIN}; font-weight:700;'>{res} (Win)</span>"
+                        elif g_info.get("is_draw"):
+                            res_badge = f"<span style='color:{COLOR_DRAW}; font-weight:700;'>{res} (Hòa)</span>" if current_lang == "vi" else f"<span style='color:{COLOR_DRAW}; font-weight:700;'>{res} (Draw)</span>"
+                        elif g_info.get("is_loss"):
+                            res_badge = f"<span style='color:{COLOR_LOSS}; font-weight:700;'>{res} (Thua)</span>" if current_lang == "vi" else f"<span style='color:{COLOR_LOSS}; font-weight:700;'>{res} (Loss)</span>"
+                        else:
+                            res_badge = f"<span>{res}</span>"
+
+                        with gc1:
+                            st.markdown(f"**Game #{g_idx + 1}**: ⚪ {w_name} vs ⚫ {b_name}")
+                        with gc2:
+                            st.markdown(f"{op_name}<br>{res_badge}", unsafe_allow_html=True)
+                        with gc3:
+                            st.markdown(f"<div style='padding-top:4px;'>Move {form_move}</div>", unsafe_allow_html=True)
+                        with gc4:
+                            is_current = (st.session_state.selected_structure_game == g_idx)
+                            btn_label = "✅ Đang xem" if is_current and current_lang == "vi" else ("✅ Viewing" if is_current else ("👁️ Xem ván" if current_lang == "vi" else "👁️ View Game"))
+                            if st.button(
+                                btn_label,
+                                key=f"btn_view_struct_game_{idx}_{g_idx}",
+                                use_container_width=True,
+                                disabled=is_current
+                            ):
+                                all_games = st.session_state.cached_filtered_games
+                                if 0 <= g_idx < len(all_games):
+                                    target_game = all_games[g_idx]
+                                    load_single_game_onto_board(target_game)
+                                    st.session_state.selected_structure_game = g_idx
+                                    st.rerun()
 
 
 # ==============================================================================
@@ -961,7 +1104,13 @@ elif active_page in ["Profile", "Performance"]:
                 st.session_state.cached_deep_profile = None
 
         # Retrieve or refresh cached deep profile
-        if st.session_state.cached_deep_profile is None or st.session_state.cached_profile_lang != current_lang:
+        is_stale_profile = False
+        if st.session_state.cached_deep_profile:
+            structs_check = st.session_state.cached_deep_profile.get("structures", {}).get("structures", [])
+            if structs_check and "games" not in structs_check[0]:
+                is_stale_profile = True
+
+        if st.session_state.cached_deep_profile is None or st.session_state.cached_profile_lang != current_lang or is_stale_profile:
             st.session_state.cached_deep_profile = generate_deep_opponent_profile(
                 st.session_state.cached_filtered_games,
                 stats,
@@ -1042,72 +1191,106 @@ elif active_page in ["Profile", "Performance"]:
         struct_list = deep_profile.get("structures", {}).get("structures", [])
         if struct_list:
             with st.container(border=True):
-                sh1, sh2, sh3, sh4 = st.columns([5, 2, 3, 2])
-                sh1.markdown("**Cấu trúc Tốt (Bấm để nạp bàn cờ)**" if current_lang == "vi" else "**Pawn Structure (Click to load)**")
+                sh1, sh2, sh3, sh4, sh5 = st.columns([4.5, 1.8, 2.5, 1.7, 2.5])
+                sh1.markdown("**Cấu trúc Tốt**" if current_lang == "vi" else "**Pawn Structure**")
                 sh2.markdown("**Số ván**" if current_lang == "vi" else "**Games**")
                 sh3.markdown("**Thắng / Hòa / Thua**" if current_lang == "vi" else "**W / D / L**")
                 sh4.markdown("**Score %**")
+                sh5.markdown("**Thao tác**" if current_lang == "vi" else "**Action**")
 
                 st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
                 for idx, item in enumerate(struct_list):
-                    s1, s2, s3, s4 = st.columns([5, 2, 3, 2])
+                    s1, s2, s3, s4, s5 = st.columns([4.5, 1.8, 2.5, 1.7, 2.5])
+                    typ_move = item.get("typical_formation_move", 12)
                     with s1:
+                        st.markdown(f"**🧩 {item['name']}**")
+                        st.caption(f"Hình thành phổ biến: **Move {typ_move}**" if current_lang == "vi" else f"Typical formation: **Move {typ_move}**")
+                    with s2:
+                        st.markdown(f"<div style='padding-top:8px; color:#475569;'>{item['games_count']} ván</div>" if current_lang == "vi" else f"<div style='padding-top:8px; color:#475569;'>{item['games_count']} games</div>", unsafe_allow_html=True)
+                    with s3:
+                        st.markdown(f"<div style='padding-top:8px;'><span style='color:#22C55E; font-weight:600;'>{item['wins']}</span> / <span style='color:#94A3B8;'>{item['draws']}</span> / <span style='color:#EF4444; font-weight:600;'>{item['losses']}</span></div>", unsafe_allow_html=True)
+                    with s4:
+                        st.markdown(f"<div style='padding-top:8px; font-weight:700; color:#10B981;'>{item['score_pct']}%</div>", unsafe_allow_html=True)
+                    with s5:
                         if st.button(
-                            f"🧩 {item['name']}",
+                            f"🔍 {t('nav_analyze_games', lang=current_lang)}" if current_lang != "vi" else "🔍 Khám phá ván đấu",
                             key=f"prof_struct_btn_{idx}_{item['name']}",
-                            help=f"Bấm để nạp {item['name']} lên Bàn cờ Phân tích" if current_lang == "vi" else f"Click to load {item['name']} onto Analysis Board",
+                            help=f"Bấm để mở Structure Explorer cho {item['name']}" if current_lang == "vi" else f"Click to open Structure Explorer for {item['name']}",
                             use_container_width=True
                         ):
-                            load_pawn_structure_onto_board(item['name'], st.session_state.cached_filtered_games)
-                    with s2:
-                        st.markdown(f"<div style='padding-top:6px; color:#475569;'>{item['games_count']} ván</div>" if current_lang == "vi" else f"<div style='padding-top:6px; color:#475569;'>{item['games_count']} games</div>", unsafe_allow_html=True)
-                    with s3:
-                        st.markdown(f"<div style='padding-top:6px;'><span style='color:#22C55E; font-weight:600;'>{item['wins']}</span> / <span style='color:#94A3B8;'>{item['draws']}</span> / <span style='color:#EF4444; font-weight:600;'>{item['losses']}</span></div>", unsafe_allow_html=True)
-                    with s4:
-                        st.markdown(f"<div style='padding-top:6px; font-weight:700; color:#10B981;'>{item['score_pct']}%</div>", unsafe_allow_html=True)
+                            load_pawn_structure_onto_board(item)
         else:
             st.info("Chưa phát hiện cấu trúc Tốt đặc trưng." if current_lang == "vi" else "No characteristic pawn structure detected.")
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
-        # 5. GAME DYNAMICS (Enriched with i18n tooltips)
+        # 5. PHASE ACCURACY TABLE (Khai cuộc, Trung cuộc, Tàn cuộc)
         has_engine = deep_profile.get("has_engine_data", False)
-        with st.container(border=True):
-            st.markdown(
-                f"### {t('game_dynamics_title', lang=current_lang)}",
-                help=t("game_dynamics_tooltip", lang=current_lang)
-            )
-            if not has_engine:
-                st.info(t("engine_pending_notice", lang=current_lang))
-            
-            dyn = deep_profile.get("dynamics", {})
-            d1, d2, d3 = st.columns(3)
-            with d1:
-                games_unit = "ván" if current_lang == "vi" else "Games"
-                st.metric(
-                    t("throw_rate_title", lang=current_lang),
-                    f"{dyn.get('throw_rate', 0.0)}%",
-                    f"{dyn.get('throw_games', 0)}/{dyn.get('eligible_advantage_games', 0)} {games_unit}",
-                    help=t("throw_rate_tooltip", lang=current_lang)
-                )
-            with d2:
-                st.metric(
-                    t("resilience_title", lang=current_lang),
-                    f"{dyn.get('resilience_rate', 0.0)}%",
-                    f"{dyn.get('resilient_games', 0)}/{dyn.get('eligible_deficit_games', 0)} {games_unit}",
-                    help=t("resilience_tooltip", lang=current_lang)
-                )
-            with d3:
-                st.metric(
-                    t("volatility_title", lang=current_lang),
-                    f"{dyn.get('volatility', 0.0)}",
-                    dyn.get('volatility_label', 'N/A'),
-                    help=t("volatility_tooltip", lang=current_lang)
-                )
+        phases_info = deep_profile.get("phases", {}).get("phases", {})
+        
+        phase_names_map = {
+            "opening": ("♟ Khai cuộc", "Opening", "Nước 1 – 12"),
+            "middlegame": ("⚔️ Trung cuộc", "Middlegame", "Nước 13 – 30"),
+            "endgame": ("🏆 Tàn cuộc", "Endgame", "Nước 31+"),
+        }
 
-            if has_engine and dyn.get("confidence", {}).get("label"):
-                st.caption(f"{t('confidence_title', lang=current_lang)}: {dyn.get('confidence', {}).get('label', '')}")
+        with st.container(border=True):
+            st.markdown(f"### 📊 {t('phase_accuracy_title', lang=current_lang)}")
+            if not has_engine:
+                st.info("💡 " + ("Chưa có dữ liệu phân tích từ Stockfish Engine. Hệ thống đang hiển thị thống kê đếm số nước đi phân loại theo từng giai đoạn:" if current_lang == "vi" else "Stockfish Engine evaluations pending. Showing classified move counts per phase:"))
+
+            # Table Header
+            h1, h2, h3, h4 = st.columns([3.5, 4, 2, 2.5])
+            h1.markdown("**Giai đoạn (Phase)**" if current_lang == "vi" else "**Phase**")
+            h2.markdown("**Tỷ lệ Chính xác**" if current_lang == "vi" else "**Accuracy Rate**")
+            h3.markdown("**Sai lầm**" if current_lang == "vi" else "**Mistakes**")
+            h4.markdown("**Đánh giá**" if current_lang == "vi" else "**Assessment**")
+
+            st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
+
+            for phase_key in ["opening", "middlegame", "endgame"]:
+                p_data = phases_info.get(phase_key, {})
+                vi_title, en_title, move_range = phase_names_map[phase_key]
+                title_label = vi_title if current_lang == "vi" else en_title
+
+                acc_pct = p_data.get("accuracy_pct")
+                mistakes_cnt = p_data.get("mistakes_count", 0)
+
+                if has_engine and acc_pct is not None:
+                    acc_str = f"{acc_pct}%"
+                    if acc_pct >= 88.0:
+                        color = "#22C55E"
+                        status = "Xuất sắc" if current_lang == "vi" else "Excellent"
+                    elif acc_pct >= 75.0:
+                        color = "#10B981"
+                        status = "Ổn định" if current_lang == "vi" else "Solid"
+                    elif acc_pct >= 60.0:
+                        color = "#F59E0B"
+                        status = "Trung bình" if current_lang == "vi" else "Average"
+                    else:
+                        color = "#EF4444"
+                        status = "Cần cải thiện" if current_lang == "vi" else "Needs Work"
+                else:
+                    acc_str = "N/A"
+                    color = "#64748B"
+                    status = "Chờ Stockfish" if current_lang == "vi" else "Pending Engine"
+
+                p1, p2, p3, p4 = st.columns([3.5, 4, 2, 2.5])
+                with p1:
+                    st.markdown(f"**{title_label}**  \n<span style='font-size:11px; color:#64748B;'>{move_range}</span>", unsafe_allow_html=True)
+                with p2:
+                    if has_engine and acc_pct is not None:
+                        st.markdown(f"<div style='font-size:15px; font-weight:800; color:{color};'>{acc_str}</div>", unsafe_allow_html=True)
+                        st.progress(int(acc_pct) / 100.0)
+                    else:
+                        st.markdown("<div style='color:#94A3B8; font-weight:600; padding-top:4px;'>N/A</div>", unsafe_allow_html=True)
+                with p3:
+                    st.markdown(f"<div style='padding-top:6px; font-weight:600; color:{'#EF4444' if mistakes_cnt > 0 else '#22C55E'};'>{mistakes_cnt}</div>", unsafe_allow_html=True)
+                with p4:
+                    st.markdown(f"<div style='padding-top:6px; font-weight:700; color:{color};'>{status}</div>", unsafe_allow_html=True)
+
+                st.markdown("<div style='margin-bottom:6px;'></div>", unsafe_allow_html=True)
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
@@ -1166,7 +1349,7 @@ elif active_page in ["Profile", "Performance"]:
                 st.markdown("##### Repertoire cầm Trắng" if current_lang == "vi" else "##### White Repertoire")
                 w_rep = deep_profile["repertoire"].get("white_repertoire", [])
                 if w_rep:
-                    wh1, wh2, wh3, wh4 = st.columns([5, 2, 3, 2])
+                    wh1, wh2, wh3, wh4 = st.columns([7.2, 1.3, 1.8, 1.7])
                     wh1.markdown("**Khai cuộc (Bấm để nạp)**" if current_lang == "vi" else "**Opening (Click to load)**")
                     wh2.markdown("**Số ván**" if current_lang == "vi" else "**Games**")
                     wh3.markdown("**W/D/L**")
@@ -1175,7 +1358,7 @@ elif active_page in ["Profile", "Performance"]:
                     st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
                     for idx, item in enumerate(w_rep):
-                        w1, w2, w3, w4 = st.columns([5, 2, 3, 2])
+                        w1, w2, w3, w4 = st.columns([7.2, 1.3, 1.8, 1.7])
                         with w1:
                             if st.button(
                                 f"♟ {item['name']}",
@@ -1198,7 +1381,7 @@ elif active_page in ["Profile", "Performance"]:
                 st.markdown("##### Repertoire cầm Đen" if current_lang == "vi" else "##### Black Repertoire")
                 b_rep = deep_profile["repertoire"].get("black_repertoire", [])
                 if b_rep:
-                    bh1, bh2, bh3, bh4 = st.columns([5, 2, 3, 2])
+                    bh1, bh2, bh3, bh4 = st.columns([7.2, 1.3, 1.8, 1.7])
                     bh1.markdown("**Khai cuộc (Bấm để nạp)**" if current_lang == "vi" else "**Opening (Click to load)**")
                     bh2.markdown("**Số ván**" if current_lang == "vi" else "**Games**")
                     bh3.markdown("**W/D/L**")
@@ -1207,7 +1390,7 @@ elif active_page in ["Profile", "Performance"]:
                     st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
                     for idx, item in enumerate(b_rep):
-                        b1, b2, b3, b4 = st.columns([5, 2, 3, 2])
+                        b1, b2, b3, b4 = st.columns([7.2, 1.3, 1.8, 1.7])
                         with b1:
                             if st.button(
                                 f"♟ {item['name']}",

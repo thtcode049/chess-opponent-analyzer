@@ -253,10 +253,11 @@ def apply_global_styles(theme_mode: str = "light"):
         .stButton button, 
         button[data-testid="stBaseButton-secondary"],
         button[data-testid="stBaseButton-primary"] {
-            height: 40px !important;
             min-height: 40px !important;
-            padding: 8px 16px !important;
-            font-size: 14px !important;
+            height: auto !important;
+            padding: 6px 12px !important;
+            font-size: 13px !important;
+            line-height: 1.35 !important;
             font-weight: 600 !important;
             border-radius: 8px !important;
             border: 1px solid var(--border-strong) !important;
@@ -264,6 +265,9 @@ def apply_global_styles(theme_mode: str = "light"):
             color: var(--text-primary) !important;
             box-shadow: var(--shadow-sm) !important;
             transition: all 0.15s ease !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            overflow-wrap: break-word !important;
         }
 
         .stButton button:hover {

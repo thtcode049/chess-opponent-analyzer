@@ -238,6 +238,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         # New Analytics & Match Prep Architecture Keys
         "structural_performance_title": "Hiệu suất Cấu trúc Tốt",
         "phase_performance_title": "Phong độ theo Giai đoạn Ván đấu",
+        "phase_accuracy_title": "Tỷ lệ Chính xác theo Giai đoạn (Khai cuộc, Trung cuộc, Tàn cuộc)",
         "throw_rate_title": "Tỷ lệ đánh mất lợi thế (Throw Rate)",
         "throw_rate_tooltip": "Tỷ lệ ván đấu mà kỳ thủ đã dẫn trước lợi thế lớn (≥ +2.0 Tốt) nhưng lại để hòa hoặc thua. Tỷ lệ này cao phản ánh sự mất tập trung hoặc khả năng dứt điểm cờ thắng chưa tốt.",
         "resilience_title": "Khả năng lật kèo (Resilience Rate)",
@@ -509,6 +510,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         # New Analytics & Match Prep Architecture Keys
         "structural_performance_title": "Structural Performance",
         "phase_performance_title": "Game Phase Performance",
+        "phase_accuracy_title": "Phase Accuracy Rate (Opening, Middlegame, Endgame)",
         "throw_rate_title": "Advantage Conversion (Throw Rate)",
         "throw_rate_tooltip": "Percentage of games where the player reached a winning advantage (eval ≥ +2.0) but failed to win (drew or lost), indicating difficulty converting winning positions.",
         "resilience_title": "Resilience & Recovery Rate",

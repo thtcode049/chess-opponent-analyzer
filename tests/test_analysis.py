@@ -95,3 +95,34 @@ def test_actionable_match_preparation():
     assert "avoid_plan" in action_prep
     assert len(action_prep["play_plan"]) > 0
     assert len(action_prep["target_plan"]) > 0
+
+
+def test_analyze_structural_performance():
+    # Game reaching IQP around move 10 (ply 18)
+    game_iqp_moves = [
+        "e4", "c5", "Nf3", "e6", "d4", "cxd4", "Nxd4", "a6",
+        "c4", "Nf6", "Nc3", "d5", "exd5", "exd5", "cxd5", "Nxd5",
+        "Nxd5", "Qxd5"  # IQP formed around ply 17
+    ]
+    games = [{
+        "moves": game_iqp_moves,
+        "player_color": "white",
+        "result": "1-0",
+        "white": "Player A",
+        "black": "Player B",
+        "opening": "Sicilian Defense",
+        "date": "2026.01.01"
+    }]
+    res = analyze_structural_performance(games)
+    structs = res.get("structures", [])
+    assert len(structs) >= 1
+    iqp_struct = next((s for s in structs if s["structure_key"] == "IQP"), None)
+    assert iqp_struct is not None
+    assert iqp_struct["games_count"] == 1
+    assert "typical_formation_move" in iqp_struct
+    assert len(iqp_struct["games"]) == 1
+    g_info = iqp_struct["games"][0]
+    assert g_info["game_index"] == 0
+    assert g_info["formation_move"] >= 8
+    assert g_info["white"] == "Player A"
+
