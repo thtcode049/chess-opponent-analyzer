@@ -14,7 +14,7 @@ from src.engine.stockfish_engine import StockfishEngine
 def analyze_game_moves(
     game: Dict[str, Any],
     engine: StockfishEngine,
-    depth: int = 12
+    depth: int = 6
 ) -> List[Dict[str, Any]]:
     """
     Phân tích từng nước đi của KỲ THỦ ĐỐI THỦ trong một ván đấu.
@@ -61,17 +61,21 @@ def analyze_game_moves(
 def batch_analyze_games(
     games: List[Dict[str, Any]],
     engine: StockfishEngine,
-    max_games: int = 15,
-    depth: int = 12
+    max_games: int = 10,
+    depth: int = 6
 ) -> Dict[str, Any]:
     """
-    Thực hiện phân tích Batch trên danh sách ván đấu chọn lọc.
+    Thực hiện phân tích Batch siêu tốc trên danh sách ván đấu chọn lọc (mặc định 10 ván).
     """
     if not engine.is_available() or not games:
+        for g in (games or []):
+            g.setdefault("game_acpl", None)
+            g.setdefault("analyzed_moves", 0)
         return {
             "available": False,
             "analyzed_games": 0,
             "total_moves_analyzed": 0,
+            "overall_acpl": None,
             "move_evaluations": [],
             "game_summaries": []
         }
@@ -83,10 +87,15 @@ def batch_analyze_games(
     for idx, g in enumerate(selected_games):
         evals = analyze_game_moves(g, engine, depth=depth)
         if not evals:
+            g["game_acpl"] = None
+            g["analyzed_moves"] = 0
             continue
 
         cpls = [e["cpl"] for e in evals if "cpl" in e]
-        avg_cpl = sum(cpls) / len(cpls) if cpls else 0.0
+        game_acpl = round(sum(cpls) / len(cpls), 1) if cpls else None
+
+        g["game_acpl"] = game_acpl
+        g["analyzed_moves"] = len(evals)
 
         game_summaries.append({
             "game_index": idx,
@@ -94,7 +103,8 @@ def batch_analyze_games(
             "result": g.get("result", "*"),
             "player_color": g.get("player_color", "white"),
             "moves_analyzed": len(evals),
-            "avg_cpl": round(avg_cpl, 1),
+            "game_acpl": game_acpl,
+            "avg_cpl": game_acpl if game_acpl is not None else 0.0,
             "site": g.get("site", "")
         })
 
@@ -104,11 +114,20 @@ def batch_analyze_games(
             e["site"] = g.get("site", "")
             all_evaluations.append(e)
 
+    # Đảm bảo các games còn lại (nếu có) có default None
+    for g in games[max_games:]:
+        g.setdefault("game_acpl", None)
+        g.setdefault("analyzed_moves", 0)
+
     total_moves = len(all_evaluations)
+    all_cpls = [e["cpl"] for e in all_evaluations if "cpl" in e]
+    overall_acpl = round(sum(all_cpls) / len(all_cpls), 1) if all_cpls else None
+
     return {
         "available": True,
         "analyzed_games": len(game_summaries),
         "total_moves_analyzed": total_moves,
+        "overall_acpl": overall_acpl,
         "move_evaluations": all_evaluations,
         "game_summaries": game_summaries
     }

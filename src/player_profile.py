@@ -10,7 +10,21 @@ from src.i18n import t
 from src.ui_components import get_icon_svg
 
 
-def _get_opening_label(game: Dict[str, Any]) -> str:
+from src.analysis.statistical_confidence import (
+    calculate_adjusted_score,
+    calculate_delta,
+    assess_performance,
+    get_sample_confidence,
+    format_assessment_label,
+    enrich_performance_item,
+    rank_strongest_items,
+    rank_weakest_items,
+    DEFAULT_PRIOR_STRENGTH
+)
+
+
+def get_opening_label(game: Dict[str, Any]) -> str:
+    """Trích xuất nhãn khai cuộc từ PGN header."""
     opening = game.get("opening", "").strip()
     eco = game.get("eco", "").strip()
     moves = game.get("moves", [])
@@ -28,18 +42,29 @@ def _get_opening_label(game: Dict[str, Any]) -> str:
     return "Unknown Opening"
 
 
+# Alias for internal/backward compatibility
+_get_opening_label = get_opening_label
+
+
 def analyze_opening_repertoire(
     filtered_games: List[Dict[str, Any]],
-    min_sample: int = 1
+    min_sample: int = 2,
+    baseline_score: Optional[float] = None,
+    prior_strength: float = 3.0,
+    lang: str = "vi"
 ) -> Dict[str, Any]:
     """
-    Phân tích Repertoire khai cuộc của đối thủ, chia theo tổng thể, màu Trắng và màu Đen.
+    Phân tích Repertoire khai cuộc của đối thủ có tích hợp Bayesian Shrinkage & Statistical Confidence.
+    Bổ sung adjusted_score_pct, delta_vs_baseline, assessment và Opening Accuracy vào từng opening.
     """
-    openings_map: Dict[str, Dict[str, int]] = {}
-    white_map: Dict[str, Dict[str, int]] = {}
-    black_map: Dict[str, Dict[str, int]] = {}
+    openings_map: Dict[str, Dict[str, Any]] = {}
+    white_map: Dict[str, Dict[str, Any]] = {}
+    black_map: Dict[str, Dict[str, Any]] = {}
 
     total_games = len(filtered_games)
+    total_wins = 0
+    total_draws = 0
+    total_losses = 0
 
     for game in filtered_games:
         opening_name = game.get("opening", "Unknown Opening").strip()
@@ -55,15 +80,19 @@ def analyze_opening_repertoire(
 
         if result == "1/2-1/2":
             is_draw = True
+            total_draws += 1
         elif (player_color == "white" and result == "1-0") or (player_color == "black" and result == "0-1"):
             is_win = True
+            total_wins += 1
         elif (player_color == "white" and result == "0-1") or (player_color == "black" and result == "1-0"):
             is_loss = True
+            total_losses += 1
 
-        def _update_stats(target_dict: dict, op_name: str):
+        def _update_stats(target_dict: dict, op_name: str, g_item: dict):
             if op_name not in target_dict:
-                target_dict[op_name] = {"games": 0, "wins": 0, "draws": 0, "losses": 0}
+                target_dict[op_name] = {"games": 0, "wins": 0, "draws": 0, "losses": 0, "games_list": []}
             target_dict[op_name]["games"] += 1
+            target_dict[op_name]["games_list"].append(g_item)
             if is_win:
                 target_dict[op_name]["wins"] += 1
             elif is_draw:
@@ -71,11 +100,17 @@ def analyze_opening_repertoire(
             elif is_loss:
                 target_dict[op_name]["losses"] += 1
 
-        _update_stats(openings_map, opening_name)
+        _update_stats(openings_map, opening_name, game)
         if player_color == "white":
-            _update_stats(white_map, opening_name)
+            _update_stats(white_map, opening_name, game)
         else:
-            _update_stats(black_map, opening_name)
+            _update_stats(black_map, opening_name, game)
+
+    # Tính Overall Player Baseline Score (mặc định 50% nếu chưa có dữ liệu)
+    if baseline_score is None:
+        effective_baseline = round(((total_wins + 0.5 * total_draws) / total_games) * 100, 1) if total_games > 0 else 50.0
+    else:
+        effective_baseline = round(float(baseline_score), 1)
 
     def _finalize_list(target_dict: dict, denominator: int) -> List[Dict[str, Any]]:
         result_list = []
@@ -84,6 +119,7 @@ def analyze_opening_repertoire(
             w = data["wins"]
             d = data["draws"]
             l = data["losses"]
+            g_list = data.get("games_list", [])
 
             usage_pct = round((g_count / denominator) * 100, 1) if denominator > 0 else 0.0
             score_pct = round(((w + 0.5 * d) / g_count) * 100, 1) if g_count > 0 else 0.0
@@ -91,7 +127,7 @@ def analyze_opening_repertoire(
             draw_pct = round((d / g_count) * 100, 1) if g_count > 0 else 0.0
             loss_pct = round((l / g_count) * 100, 1) if g_count > 0 else 0.0
 
-            result_list.append({
+            item = {
                 "name": name,
                 "games_count": g_count,
                 "usage_pct": usage_pct,
@@ -102,7 +138,11 @@ def analyze_opening_repertoire(
                 "wins": w,
                 "draws": d,
                 "losses": l,
-            })
+            }
+            # Bổ sung Bayesian Shrinkage & Statistical Assessment cho Score
+            enriched_item = enrich_performance_item(item, effective_baseline, prior_strength=prior_strength, lang=lang)
+            result_list.append(enriched_item)
+
         return result_list
 
     all_openings = _finalize_list(openings_map, total_games)
@@ -111,8 +151,10 @@ def analyze_opening_repertoire(
 
     most_played = sorted(all_openings, key=lambda x: x["games_count"], reverse=True)
     eligible = [op for op in all_openings if op["games_count"] >= min_sample]
-    best_scoring = sorted(eligible, key=lambda x: (x["score_pct"], x["games_count"]), reverse=True)
-    worst_scoring = sorted(eligible, key=lambda x: (x["score_pct"], -x["games_count"]))
+
+    # Xếp hạng Strongest / Weakest có tính đến Bayesian Shrinkage & Statistical Confidence
+    best_scoring = rank_strongest_items(eligible)
+    worst_scoring = rank_weakest_items(eligible)
 
     return {
         "all_openings": most_played,
@@ -121,6 +163,7 @@ def analyze_opening_repertoire(
         "worst_scoring": worst_scoring[:5],
         "white_repertoire": sorted(white_repertoire, key=lambda x: x["games_count"], reverse=True),
         "black_repertoire": sorted(black_repertoire, key=lambda x: x["games_count"], reverse=True),
+        "overall_baseline": effective_baseline
     }
 
 
@@ -239,8 +282,9 @@ def generate_deep_opponent_profile(
     from src.analysis.style_classifier import classify_player_style
     from src.analysis.critical_positions import find_critical_positions
 
-    repertoire_data = analyze_opening_repertoire(filtered_games)
-    structures_data = analyze_structural_performance(filtered_games, move_evaluations=move_evaluations, lang=lang)
+    baseline = stats.get("score_percentage", 50.0) if stats else 50.0
+    repertoire_data = analyze_opening_repertoire(filtered_games, baseline_score=baseline, lang=lang)
+    structures_data = analyze_structural_performance(filtered_games, move_evaluations=move_evaluations, baseline_score=baseline, lang=lang)
     phases_data = analyze_phase_performance(filtered_games, move_evaluations=move_evaluations, lang=lang)
     dynamics_data = analyze_game_dynamics(filtered_games, move_evaluations=move_evaluations, lang=lang)
     simplification_data = analyze_simplification_performance(filtered_games, move_evaluations=move_evaluations, lang=lang)
@@ -260,6 +304,11 @@ def generate_deep_opponent_profile(
     critical_positions = find_critical_positions(move_evaluations, max_positions=5)
     rule_insights = generate_player_insights(filtered_games, stats, repertoire_data, {}, lang=lang)
 
+    # ACPL tổng thể từ các nước đi có Stockfish evaluation của player
+    all_cpls = [e["cpl"] for e in (move_evaluations or []) if "cpl" in e]
+    overall_acpl = round(sum(all_cpls) / len(all_cpls), 1) if all_cpls else None
+    overall_analyzed_moves = len(all_cpls)
+
     return {
         "repertoire": repertoire_data,
         "structures": structures_data,
@@ -269,7 +318,9 @@ def generate_deep_opponent_profile(
         "style_profile": style_profile,
         "critical_positions": critical_positions,
         "rule_insights": rule_insights,
-        "has_engine_data": bool(move_evaluations)
+        "has_engine_data": bool(move_evaluations),
+        "overall_acpl": overall_acpl,
+        "overall_analyzed_moves": overall_analyzed_moves
     }
 
 

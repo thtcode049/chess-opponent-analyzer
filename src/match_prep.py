@@ -115,6 +115,16 @@ def analyze_opponent_responses(
     }
 
 
+from src.analysis.statistical_confidence import (
+    rank_strongest_items,
+    rank_weakest_items,
+    ASSESSMENT_CONFIRMED_STRENGTH,
+    ASSESSMENT_POTENTIAL_STRENGTH,
+    ASSESSMENT_CONFIRMED_WEAKNESS,
+    ASSESSMENT_POTENTIAL_WEAKNESS
+)
+
+
 def generate_match_preparation(
     filtered_games: List[Dict[str, Any]],
     stats: Dict[str, Any],
@@ -127,6 +137,7 @@ def generate_match_preparation(
 ) -> Dict[str, Any]:
     """
     Tạo kế hoạch chuẩn bị trận đấu chi tiết dựa trên dữ liệu lịch sử đấu của đối thủ (Đa ngôn ngữ).
+    Tích hợp Bayesian Framework để chỉ tập trung vào các điểm yếu có độ tin cậy thống kê cao.
     """
     if not filtered_games:
         return {
@@ -144,33 +155,49 @@ def generate_match_preparation(
     # Phân tích phản ứng đối thủ theo nước đi chủ động
     opponent_responses = analyze_opponent_responses(filtered_games, user_color, chosen_move)
 
-    # 1. Điểm yếu của đối thủ (Loss % cao hoặc Score % thấp <= 45%)
+    # 1. Điểm yếu của đối thủ (Ưu tiên Confirmed Weakness -> Potential Weakness)
     target_weaknesses = []
-    for op in all_openings:
-        if op["games_count"] >= 1 and op["score_pct"] <= 45.0:
-            l_pct = op.get("loss_pct", round((op.get("losses", 0) / op["games_count"]) * 100, 1) if op.get("games_count", 0) > 0 else 0.0)
+    ranked_all_weak = rank_weakest_items(all_openings)
+    for op in ranked_all_weak:
+        assess = op.get("assessment", "")
+        delta = op.get("delta_vs_baseline", 0.0)
+        raw_score = op.get("score_pct", 50.0)
+        g_count = op.get("games_count", 0)
+
+        # Điều kiện điểm yếu: Confirmed Weakness HOẶC Potential Weakness HOẶC Delta <= -5% HOẶC Raw Score <= 45%
+        if assess in [ASSESSMENT_CONFIRMED_WEAKNESS, ASSESSMENT_POTENTIAL_WEAKNESS] or delta <= -5.0 or (g_count >= 1 and raw_score <= 45.0):
+            l_pct = op.get("loss_pct", round((op.get("losses", 0) / g_count) * 100, 1) if g_count > 0 else 0.0)
             target_weaknesses.append({
                 "name": op["name"],
-                "games_count": op["games_count"],
-                "score_pct": op["score_pct"],
+                "games_count": g_count,
+                "score_pct": raw_score,
+                "adjusted_score_pct": op.get("adjusted_score_pct", raw_score),
+                "delta_vs_baseline": delta,
+                "assessment": assess,
+                "assessment_badge": op.get("assessment_badge", ""),
                 "loss_pct": l_pct,
-                "reason": t("weakness_reason", lang=lang, score=op["score_pct"], loss=l_pct, count=op["games_count"])
+                "reason": t("weakness_reason", lang=lang, score=raw_score, loss=l_pct, count=g_count)
             })
-    target_weaknesses.sort(key=lambda x: x["score_pct"])
 
     # 2. Đề xuất phương án tác chiến theo Màu quân của Người dùng
     recommended_lines = []
     
     if user_color == "white":
         # Bạn cầm Trắng -> Đối thủ cầm Đen
-        weak_black_ops = [b for b in black_rep if b["score_pct"] <= 50.0]
+        ranked_b_weak = rank_weakest_items(black_rep)
+        weak_black_ops = [
+            b for b in ranked_b_weak 
+            if b.get("assessment") in [ASSESSMENT_CONFIRMED_WEAKNESS, ASSESSMENT_POTENTIAL_WEAKNESS] 
+            or b.get("delta_vs_baseline", 0.0) <= -5.0 
+            or b.get("score_pct", 50.0) <= 50.0
+        ]
         if weak_black_ops:
-            weak_black_ops.sort(key=lambda x: x["score_pct"])
             for b_op in weak_black_ops[:3]:
+                priority = "High" if b_op.get("assessment") == ASSESSMENT_CONFIRMED_WEAKNESS or b_op.get("score_pct", 50.0) < 40.0 else "Medium"
                 recommended_lines.append({
                     "title": t("rec_target_line_title", lang=lang, name=b_op['name']),
                     "detail": t("rec_target_line_detail", lang=lang, score=b_op['score_pct']),
-                    "priority": "High" if b_op["score_pct"] < 40.0 else "Medium"
+                    "priority": priority
                 })
         else:
             if black_rep:
@@ -182,14 +209,20 @@ def generate_match_preparation(
                 })
     else:
         # Bạn cầm Đen -> Đối thủ cầm Trắng
-        weak_white_ops = [w for w in white_rep if w["score_pct"] <= 50.0]
+        ranked_w_weak = rank_weakest_items(white_rep)
+        weak_white_ops = [
+            w for w in ranked_w_weak 
+            if w.get("assessment") in [ASSESSMENT_CONFIRMED_WEAKNESS, ASSESSMENT_POTENTIAL_WEAKNESS] 
+            or w.get("delta_vs_baseline", 0.0) <= -5.0 
+            or w.get("score_pct", 50.0) <= 50.0
+        ]
         if weak_white_ops:
-            weak_white_ops.sort(key=lambda x: x["score_pct"])
             for w_op in weak_white_ops[:3]:
+                priority = "High" if w_op.get("assessment") == ASSESSMENT_CONFIRMED_WEAKNESS or w_op.get("score_pct", 50.0) < 40.0 else "Medium"
                 recommended_lines.append({
                     "title": t("rec_white_weak_title", lang=lang, name=w_op['name']),
                     "detail": t("rec_white_weak_detail", lang=lang, score=w_op['score_pct']),
-                    "priority": "High" if w_op["score_pct"] < 40.0 else "Medium"
+                    "priority": priority
                 })
         else:
             if white_rep:
@@ -250,6 +283,7 @@ def generate_actionable_match_preparation(
     """
     Chuyển đổi các phát hiện từ Deep Opponent Profile thành Kế hoạch Thi đấu Ngắn gọn & Có thể Hành động (Decision Support Match Prep).
     Kết hợp đa chiều: Repertoire, Structures, Phases, Dynamics, Simplification, và Playing Style Profile.
+    Áp dụng Bayesian Ranking để chọn đúng vũ khí chủ lực và điểm yếu xác thực của đối thủ.
     """
     repertoire = deep_profile.get("repertoire", {})
     structures = deep_profile.get("structures", {})
@@ -259,13 +293,16 @@ def generate_actionable_match_preparation(
     style_profile = deep_profile.get("style_profile", {})
     critical_positions = deep_profile.get("critical_positions", [])
 
-    # A. Khai cuộc Mạnh nhất & Yếu nhất của đối thủ
+    # A. Khai cuộc Mạnh nhất & Yếu nhất của đối thủ (Xếp hạng Bayesian)
     all_openings = repertoire.get("all_openings", [])
     target_rep = repertoire.get("black_repertoire" if user_color == "white" else "white_repertoire", all_openings)
 
     eligible_ops = [op for op in target_rep if op.get("games_count", 0) >= 1]
-    strongest_op = max(eligible_ops, key=lambda x: (x["score_pct"], x["games_count"])) if eligible_ops else None
-    weakest_op = min(eligible_ops, key=lambda x: (x["score_pct"], -x["games_count"])) if eligible_ops else None
+    ranked_strong_ops = rank_strongest_items(eligible_ops)
+    ranked_weak_ops = rank_weakest_items(eligible_ops)
+
+    strongest_op = ranked_strong_ops[0] if ranked_strong_ops else None
+    weakest_op = ranked_weak_ops[0] if ranked_weak_ops else None
 
     # B. Target Structure
     target_struct = structures.get("target_structure")

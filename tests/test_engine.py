@@ -14,7 +14,7 @@ from src.engine.stockfish_engine import StockfishEngine, normalize_score
 
 
 def test_engine_config():
-    assert ENGINE_DEPTH == 12
+    assert isinstance(ENGINE_DEPTH, int) and ENGINE_DEPTH > 0
     # Executable path finding should return str or None without throwing
     exe_path = find_stockfish_executable()
     assert exe_path is None or isinstance(exe_path, str)

@@ -26,12 +26,14 @@ def test_confidence_level():
 
 def test_classify_phase():
     board = chess.Board()
-    # Move 5 is Opening
+    # Move 5 with undeveloped pieces is Opening
     assert classify_phase(board, 5) == "opening"
-    # Move 18 with starting pieces is Middlegame
+    # Move 18 with starting pieces (move > 15) is Middlegame
     assert classify_phase(board, 18) == "middlegame"
-    # Move 35 is Endgame
-    assert classify_phase(board, 35) == "endgame"
+
+    # Endgame board (low material) is Endgame
+    endgame_board = chess.Board("4k3/ppp2ppp/5n2/8/8/8/PPP2PPP/4K2R w K - 0 35")
+    assert classify_phase(endgame_board, 35) == "endgame"
 
     # Empty board material except kings is Endgame
     empty_board = chess.Board("8/8/8/4k3/4K3/8/8/8 w - - 0 1")

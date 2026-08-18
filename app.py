@@ -1191,30 +1191,41 @@ elif active_page in ["Profile", "Performance"]:
         struct_list = deep_profile.get("structures", {}).get("structures", [])
         if struct_list:
             with st.container(border=True):
-                sh1, sh2, sh3, sh4, sh5 = st.columns([4.5, 1.8, 2.5, 1.7, 2.5])
+                sh1, sh2, sh3, sh4, sh5, sh6 = st.columns([3.6, 1.0, 1.8, 1.4, 2.4, 1.8])
                 sh1.markdown("**Cấu trúc Tốt**" if current_lang == "vi" else "**Pawn Structure**")
                 sh2.markdown("**Số ván**" if current_lang == "vi" else "**Games**")
-                sh3.markdown("**Thắng / Hòa / Thua**" if current_lang == "vi" else "**W / D / L**")
-                sh4.markdown("**Score %**")
-                sh5.markdown("**Thao tác**" if current_lang == "vi" else "**Action**")
+                sh3.markdown("**W / D / L**")
+                sh4.markdown("**Raw %**")
+                sh5.markdown("**Bayes Adj (Độ tin cậy)**" if current_lang == "vi" else "**Bayes Adj (Confidence)**")
+                sh6.markdown("**Thao tác**" if current_lang == "vi" else "**Action**")
 
                 st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
                 for idx, item in enumerate(struct_list):
-                    s1, s2, s3, s4, s5 = st.columns([4.5, 1.8, 2.5, 1.7, 2.5])
+                    s1, s2, s3, s4, s5, s6 = st.columns([3.6, 1.0, 1.8, 1.4, 2.4, 1.8])
                     typ_move = item.get("typical_formation_move", 12)
+                    raw_s = item.get("score_pct", 0.0)
+                    adj_s = item.get("adjusted_score_pct", raw_s)
+                    delta = item.get("delta_vs_baseline", 0.0)
+                    delta_str = f"+{delta}%" if delta > 0 else f"{delta}%"
+                    delta_color = "#22C55E" if delta > 0 else ("#EF4444" if delta < 0 else "#94A3B8")
+                    badge = item.get("assessment_badge", "")
+                    badge_color = item.get("assessment_color", "#94A3B8")
+
                     with s1:
                         st.markdown(f"**🧩 {item['name']}**")
-                        st.caption(f"Hình thành phổ biến: **Move {typ_move}**" if current_lang == "vi" else f"Typical formation: **Move {typ_move}**")
+                        st.caption(f"Move {typ_move}")
                     with s2:
-                        st.markdown(f"<div style='padding-top:8px; color:#475569;'>{item['games_count']} ván</div>" if current_lang == "vi" else f"<div style='padding-top:8px; color:#475569;'>{item['games_count']} games</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='padding-top:8px; color:#475569;'>{item['games_count']} ván</div>" if current_lang == "vi" else f"<div style='padding-top:8px; color:#475569;'>{item['games_count']} g</div>", unsafe_allow_html=True)
                     with s3:
-                        st.markdown(f"<div style='padding-top:8px;'><span style='color:#22C55E; font-weight:600;'>{item['wins']}</span> / <span style='color:#94A3B8;'>{item['draws']}</span> / <span style='color:#EF4444; font-weight:600;'>{item['losses']}</span></div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='padding-top:8px;'><span style='color:#22C55E; font-weight:600;'>{item['wins']}</span>/<span style='color:#94A3B8;'>{item['draws']}</span>/<span style='color:#EF4444; font-weight:600;'>{item['losses']}</span></div>", unsafe_allow_html=True)
                     with s4:
-                        st.markdown(f"<div style='padding-top:8px; font-weight:700; color:#10B981;'>{item['score_pct']}%</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='padding-top:8px; font-weight:700; color:#1E293B;'>{raw_s}%</div>", unsafe_allow_html=True)
                     with s5:
+                        st.markdown(f"<div style='padding-top:4px;'><span style='font-weight:700; color:#4F46E5;'>{adj_s}%</span> <span style='font-size:11px; color:{delta_color}; font-weight:600;'>({delta_str})</span><br><span style='font-size:11.5px; font-weight:600; color:{badge_color};'>{badge}</span></div>", unsafe_allow_html=True)
+                    with s6:
                         if st.button(
-                            f"🔍 {t('nav_analyze_games', lang=current_lang)}" if current_lang != "vi" else "🔍 Khám phá ván đấu",
+                            f"🔍 {t('nav_analyze_games', lang=current_lang)}" if current_lang != "vi" else "🔍 Khám phá",
                             key=f"prof_struct_btn_{idx}_{item['name']}",
                             help=f"Bấm để mở Structure Explorer cho {item['name']}" if current_lang == "vi" else f"Click to open Structure Explorer for {item['name']}",
                             use_container_width=True
@@ -1225,27 +1236,28 @@ elif active_page in ["Profile", "Performance"]:
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
-        # 5. PHASE ACCURACY TABLE (Khai cuộc, Trung cuộc, Tàn cuộc)
+        # 5. PHASE ACCURACY TABLE (Khai cuộc, Trung cuộc, Tàn cuộc - Dynamic Phase Detection)
         has_engine = deep_profile.get("has_engine_data", False)
         phases_info = deep_profile.get("phases", {}).get("phases", {})
         
         phase_names_map = {
-            "opening": ("♟ Khai cuộc", "Opening", "Nước 1 – 12"),
-            "middlegame": ("⚔️ Trung cuộc", "Middlegame", "Nước 13 – 30"),
-            "endgame": ("🏆 Tàn cuộc", "Endgame", "Nước 31+"),
+            "opening": ("♟ Khai cuộc", "Opening", "Phát triển quân nhẹ"),
+            "middlegame": ("⚔️ Trung cuộc", "Middlegame", "Chiến thuật & Thế trận"),
+            "endgame": ("🏆 Tàn cuộc", "Endgame", "Lực lượng tinh giản"),
         }
 
         with st.container(border=True):
             st.markdown(f"### 📊 {t('phase_accuracy_title', lang=current_lang)}")
             if not has_engine:
-                st.info("💡 " + ("Chưa có dữ liệu phân tích từ Stockfish Engine. Hệ thống đang hiển thị thống kê đếm số nước đi phân loại theo từng giai đoạn:" if current_lang == "vi" else "Stockfish Engine evaluations pending. Showing classified move counts per phase:"))
+                st.info("💡 " + ("Chưa có dữ liệu phân tích từ Stockfish Engine. Hệ thống đang hiển thị thống kê đếm số nước đi phân loại theo từng giai đoạn động:" if current_lang == "vi" else "Stockfish Engine evaluations pending. Showing dynamically classified move counts per phase:"))
 
             # Table Header
-            h1, h2, h3, h4 = st.columns([3.5, 4, 2, 2.5])
+            h1, h2, h3, h4, h5 = st.columns([3.0, 1.8, 1.8, 3.2, 2.2])
             h1.markdown("**Giai đoạn (Phase)**" if current_lang == "vi" else "**Phase**")
-            h2.markdown("**Tỷ lệ Chính xác**" if current_lang == "vi" else "**Accuracy Rate**")
-            h3.markdown("**Sai lầm**" if current_lang == "vi" else "**Mistakes**")
-            h4.markdown("**Đánh giá**" if current_lang == "vi" else "**Assessment**")
+            h2.markdown("**Số ván**" if current_lang == "vi" else "**Games**")
+            h3.markdown("**Số nước**" if current_lang == "vi" else "**Moves**")
+            h4.markdown("**Tỷ lệ Chính xác**" if current_lang == "vi" else "**Accuracy Rate**", help=t("accuracy_tooltip", lang=current_lang))
+            h5.markdown("**Đánh giá**" if current_lang == "vi" else "**Assessment**")
 
             st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
@@ -1254,18 +1266,19 @@ elif active_page in ["Profile", "Performance"]:
                 vi_title, en_title, move_range = phase_names_map[phase_key]
                 title_label = vi_title if current_lang == "vi" else en_title
 
-                acc_pct = p_data.get("accuracy_pct")
-                mistakes_cnt = p_data.get("mistakes_count", 0)
+                acc_val = p_data.get("accuracy") or p_data.get("accuracy_pct")
+                games_cnt = p_data.get("games_count", 0)
+                moves_cnt = p_data.get("analyzed_moves", p_data.get("moves_count", 0))
 
-                if has_engine and acc_pct is not None:
-                    acc_str = f"{acc_pct}%"
-                    if acc_pct >= 88.0:
+                if has_engine and acc_val is not None:
+                    acc_str = f"{acc_val}%"
+                    if acc_val >= 88.0:
                         color = "#22C55E"
                         status = "Xuất sắc" if current_lang == "vi" else "Excellent"
-                    elif acc_pct >= 75.0:
+                    elif acc_val >= 75.0:
                         color = "#10B981"
                         status = "Ổn định" if current_lang == "vi" else "Solid"
-                    elif acc_pct >= 60.0:
+                    elif acc_val >= 60.0:
                         color = "#F59E0B"
                         status = "Trung bình" if current_lang == "vi" else "Average"
                     else:
@@ -1276,18 +1289,20 @@ elif active_page in ["Profile", "Performance"]:
                     color = "#64748B"
                     status = "Chờ Stockfish" if current_lang == "vi" else "Pending Engine"
 
-                p1, p2, p3, p4 = st.columns([3.5, 4, 2, 2.5])
+                p1, p2, p3, p4, p5 = st.columns([3.0, 1.8, 1.8, 3.2, 2.2])
                 with p1:
                     st.markdown(f"**{title_label}**  \n<span style='font-size:11px; color:#64748B;'>{move_range}</span>", unsafe_allow_html=True)
                 with p2:
-                    if has_engine and acc_pct is not None:
+                    st.markdown(f"<div style='padding-top:6px; color:#475569;'>{games_cnt} ván</div>" if current_lang == "vi" else f"<div style='padding-top:6px; color:#475569;'>{games_cnt} g</div>", unsafe_allow_html=True)
+                with p3:
+                    st.markdown(f"<div style='padding-top:6px; font-weight:600;'>{moves_cnt}</div>", unsafe_allow_html=True)
+                with p4:
+                    if has_engine and acc_val is not None:
                         st.markdown(f"<div style='font-size:15px; font-weight:800; color:{color};'>{acc_str}</div>", unsafe_allow_html=True)
-                        st.progress(int(acc_pct) / 100.0)
+                        st.progress(float(acc_val) / 100.0)
                     else:
                         st.markdown("<div style='color:#94A3B8; font-weight:600; padding-top:4px;'>N/A</div>", unsafe_allow_html=True)
-                with p3:
-                    st.markdown(f"<div style='padding-top:6px; font-weight:600; color:{'#EF4444' if mistakes_cnt > 0 else '#22C55E'};'>{mistakes_cnt}</div>", unsafe_allow_html=True)
-                with p4:
+                with p5:
                     st.markdown(f"<div style='padding-top:6px; font-weight:700; color:{color};'>{status}</div>", unsafe_allow_html=True)
 
                 st.markdown("<div style='margin-bottom:6px;'></div>", unsafe_allow_html=True)
@@ -1396,16 +1411,25 @@ elif active_page in ["Profile", "Performance"]:
                 st.markdown("##### Repertoire cầm Trắng" if current_lang == "vi" else "##### White Repertoire")
                 w_rep = deep_profile["repertoire"].get("white_repertoire", [])
                 if w_rep:
-                    wh1, wh2, wh3, wh4 = st.columns([7.2, 1.3, 1.8, 1.7])
-                    wh1.markdown("**Khai cuộc (Bấm để nạp)**" if current_lang == "vi" else "**Opening (Click to load)**")
-                    wh2.markdown("**Số ván**" if current_lang == "vi" else "**Games**")
+                    wh1, wh2, wh3, wh4, wh5 = st.columns([4.8, 1.0, 1.8, 1.4, 2.6])
+                    wh1.markdown("**Khai cuộc**" if current_lang == "vi" else "**Opening**")
+                    wh2.markdown("**Ván**" if current_lang == "vi" else "**G**")
                     wh3.markdown("**W/D/L**")
-                    wh4.markdown("**Score %**")
+                    wh4.markdown("**Raw %**")
+                    wh5.markdown("**Bayes Adj (Độ tin cậy)**" if current_lang == "vi" else "**Bayes Adj (Confidence)**")
 
                     st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
                     for idx, item in enumerate(w_rep):
-                        w1, w2, w3, w4 = st.columns([7.2, 1.3, 1.8, 1.7])
+                        w1, w2, w3, w4, w5 = st.columns([4.8, 1.0, 1.8, 1.4, 2.6])
+                        raw_s = item.get("score_pct", 0.0)
+                        adj_s = item.get("adjusted_score_pct", raw_s)
+                        delta = item.get("delta_vs_baseline", 0.0)
+                        delta_str = f"+{delta}%" if delta > 0 else f"{delta}%"
+                        delta_color = "#22C55E" if delta > 0 else ("#EF4444" if delta < 0 else "#94A3B8")
+                        badge = item.get("assessment_badge", "")
+                        badge_color = item.get("assessment_color", "#94A3B8")
+
                         with w1:
                             if st.button(
                                 f"♟ {item['name']}",
@@ -1419,7 +1443,9 @@ elif active_page in ["Profile", "Performance"]:
                         with w3:
                             st.markdown(f"<div style='padding-top:6px;'><span style='color:#22C55E; font-weight:600;'>{item['wins']}</span>/<span style='color:#94A3B8;'>{item['draws']}</span>/<span style='color:#EF4444; font-weight:600;'>{item['losses']}</span></div>", unsafe_allow_html=True)
                         with w4:
-                            st.markdown(f"<div style='padding-top:6px; font-weight:700; color:#10B981;'>{item['score_pct']}%</div>", unsafe_allow_html=True)
+                            st.markdown(f"<div style='padding-top:6px; font-weight:700; color:#1E293B;'>{raw_s}%</div>", unsafe_allow_html=True)
+                        with w5:
+                            st.markdown(f"<div style='padding-top:4px;'><span style='font-weight:700; color:#4F46E5;'>{adj_s}%</span> <span style='font-size:10.5px; color:{delta_color}; font-weight:600;'>({delta_str})</span><br><span style='font-size:10.5px; font-weight:600; color:{badge_color};'>{badge}</span></div>", unsafe_allow_html=True)
                 else:
                     st.info("Không có dữ liệu khi cầm Trắng." if current_lang == "vi" else "No White repertoire data.")
 
@@ -1428,16 +1454,25 @@ elif active_page in ["Profile", "Performance"]:
                 st.markdown("##### Repertoire cầm Đen" if current_lang == "vi" else "##### Black Repertoire")
                 b_rep = deep_profile["repertoire"].get("black_repertoire", [])
                 if b_rep:
-                    bh1, bh2, bh3, bh4 = st.columns([7.2, 1.3, 1.8, 1.7])
-                    bh1.markdown("**Khai cuộc (Bấm để nạp)**" if current_lang == "vi" else "**Opening (Click to load)**")
-                    bh2.markdown("**Số ván**" if current_lang == "vi" else "**Games**")
+                    bh1, bh2, bh3, bh4, bh5 = st.columns([4.8, 1.0, 1.8, 1.4, 2.6])
+                    bh1.markdown("**Khai cuộc**" if current_lang == "vi" else "**Opening**")
+                    bh2.markdown("**Ván**" if current_lang == "vi" else "**G**")
                     bh3.markdown("**W/D/L**")
-                    bh4.markdown("**Score %**")
+                    bh4.markdown("**Raw %**")
+                    bh5.markdown("**Bayes Adj (Độ tin cậy)**" if current_lang == "vi" else "**Bayes Adj (Confidence)**")
 
                     st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
                     for idx, item in enumerate(b_rep):
-                        b1, b2, b3, b4 = st.columns([7.2, 1.3, 1.8, 1.7])
+                        b1, b2, b3, b4, b5 = st.columns([4.8, 1.0, 1.8, 1.4, 2.6])
+                        raw_s = item.get("score_pct", 0.0)
+                        adj_s = item.get("adjusted_score_pct", raw_s)
+                        delta = item.get("delta_vs_baseline", 0.0)
+                        delta_str = f"+{delta}%" if delta > 0 else f"{delta}%"
+                        delta_color = "#22C55E" if delta > 0 else ("#EF4444" if delta < 0 else "#94A3B8")
+                        badge = item.get("assessment_badge", "")
+                        badge_color = item.get("assessment_color", "#94A3B8")
+
                         with b1:
                             if st.button(
                                 f"♟ {item['name']}",
@@ -1451,7 +1486,9 @@ elif active_page in ["Profile", "Performance"]:
                         with b3:
                             st.markdown(f"<div style='padding-top:6px;'><span style='color:#22C55E; font-weight:600;'>{item['wins']}</span>/<span style='color:#94A3B8;'>{item['draws']}</span>/<span style='color:#EF4444; font-weight:600;'>{item['losses']}</span></div>", unsafe_allow_html=True)
                         with b4:
-                            st.markdown(f"<div style='padding-top:6px; font-weight:700; color:#10B981;'>{item['score_pct']}%</div>", unsafe_allow_html=True)
+                            st.markdown(f"<div style='padding-top:6px; font-weight:700; color:#1E293B;'>{raw_s}%</div>", unsafe_allow_html=True)
+                        with b5:
+                            st.markdown(f"<div style='padding-top:4px;'><span style='font-weight:700; color:#4F46E5;'>{adj_s}%</span> <span style='font-size:10.5px; color:{delta_color}; font-weight:600;'>({delta_str})</span><br><span style='font-size:10.5px; font-weight:600; color:{badge_color};'>{badge}</span></div>", unsafe_allow_html=True)
                 else:
                     st.info("Không có dữ liệu khi cầm Đen." if current_lang == "vi" else "No Black repertoire data.")
 

@@ -83,16 +83,31 @@ def detect_pawn_structure(board: chess.Board) -> Dict[str, Any]:
     return {"structure": "Standard", "name": "Standard Structure", "side": "both", "square": ""}
 
 
+from src.analysis.statistical_confidence import (
+    enrich_performance_item,
+    rank_weakest_items,
+    ASSESSMENT_CONFIRMED_WEAKNESS,
+    ASSESSMENT_POTENTIAL_WEAKNESS,
+    DEFAULT_PRIOR_STRENGTH
+)
+
+
 def analyze_structural_performance(
     filtered_games: List[Dict[str, Any]],
     move_evaluations: Optional[List[Dict[str, Any]]] = None,
+    baseline_score: Optional[float] = None,
+    prior_strength: float = DEFAULT_PRIOR_STRENGTH,
     lang: str = "vi"
 ) -> Dict[str, Any]:
     """
     Phân tích hiệu suất thi đấu của đối thủ theo từng dạng Cấu trúc Tốt.
     Mỗi ván đấu được đếm 1 LẦN DUY NHẤT cho mỗi cấu trúc mà ván đó đi qua trong nước 8 -> 15.
+    Tích hợp Bayesian Shrinkage & Statistical Confidence Framework.
     """
     struct_stats: Dict[str, Dict[str, Any]] = {}
+    total_games = len(filtered_games)
+    total_wins = 0
+    total_draws = 0
 
     for g_idx, game in enumerate(filtered_games):
         moves = game.get("moves", [])
@@ -102,6 +117,11 @@ def analyze_structural_performance(
         is_win = (player_color == "white" and result == "1-0") or (player_color == "black" and result == "0-1")
         is_draw = (result == "1/2-1/2")
         is_loss = (player_color == "white" and result == "0-1") or (player_color == "black" and result == "1-0")
+
+        if is_win:
+            total_wins += 1
+        elif is_draw:
+            total_draws += 1
 
         board = chess.Board()
         seen_in_game = set()
@@ -157,8 +177,15 @@ def analyze_structural_performance(
                         "player_color": player_color,
                         "is_win": is_win,
                         "is_draw": is_draw,
-                        "is_loss": is_loss
+                        "is_loss": is_loss,
+                        "game_accuracy": game.get("game_accuracy")
                     })
+
+    # Tính Overall Player Baseline Score (mặc định 50% nếu chưa có dữ liệu)
+    if baseline_score is None:
+        effective_baseline = round(((total_wins + 0.5 * total_draws) / total_games) * 100, 1) if total_games > 0 else 50.0
+    else:
+        effective_baseline = round(float(baseline_score), 1)
 
     # Kết hợp CPL từ move_evaluations nếu có
     if move_evaluations:
@@ -184,7 +211,7 @@ def analyze_structural_performance(
         formation_moves = data["formation_moves"]
         typical_move = round(sum(formation_moves) / len(formation_moves)) if formation_moves else 12
 
-        result_list.append({
+        struct_item = {
             "name": name,
             "structure_key": data["structure_key"],
             "games_count": g_count,
@@ -196,17 +223,28 @@ def analyze_structural_performance(
             "confidence": conf,
             "typical_formation_move": typical_move,
             "games": data["games"]
-        })
+        }
+        # Bổ sung Bayesian Shrinkage & Assessment
+        enriched_struct = enrich_performance_item(struct_item, effective_baseline, prior_strength=prior_strength, lang=lang)
+        result_list.append(enriched_struct)
 
     result_list.sort(key=lambda x: x["games_count"], reverse=True)
 
-    # Xác định Cấu trúc điểm yếu nhất (tỷ lệ thắng/điểm số thấp nhất)
+    # Xác định Cấu trúc điểm yếu nhất (Target Structure) bằng Bayesian Framework
+    # Ưu tiên: CONFIRMED_WEAKNESS -> POTENTIAL_WEAKNESS -> Lowest Adjusted Score
     target_structure = None
-    eligible = [s for s in result_list if s["games_count"] >= 2]
-    if eligible:
-        target_structure = min(eligible, key=lambda x: (x["score_pct"], -x["games_count"]))
+    if result_list:
+        ranked_weakest = rank_weakest_items(result_list)
+        if ranked_weakest:
+            candidate = ranked_weakest[0]
+            # Chỉ chọn target structure nếu có dấu hiệu yếu thế hơn baseline hoặc điểm yếu được xác nhận
+            if candidate.get("assessment") in [ASSESSMENT_CONFIRMED_WEAKNESS, ASSESSMENT_POTENTIAL_WEAKNESS] or candidate.get("delta_vs_baseline", 0.0) <= -5.0:
+                target_structure = candidate
+            elif candidate.get("games_count", 0) >= 1:
+                target_structure = candidate
 
     return {
         "structures": result_list,
-        "target_structure": target_structure
+        "target_structure": target_structure,
+        "overall_baseline": effective_baseline
     }
