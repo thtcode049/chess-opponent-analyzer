@@ -127,3 +127,178 @@ def test_push_move_preserves_full_analysis_line():
     assert st.session_state.full_analysis_line == ["e4", "e5", "Nf3", "Nc6", "Bc4"]
 
 
+def test_opening_tree_transposition_stats_aggregation():
+    """Kiểm tra không bị ghi đè FEN khi chuyển vị (transposition) và thống kê chính xác."""
+    # Game 1: 1. d4 Nf6 2. c4 e6 3. Nf3 (White Win)
+    # Game 2: 1. c4 e6 2. d4 Nf6 3. Nc3 (White Loss)
+    # Both reach FEN after ply 4 (d4, Nf6, c4, e6)
+    games = [
+        {
+            "white": "PlayerA",
+            "black": "PlayerB",
+            "result": "1-0",
+            "player_color": "white",
+            "moves": ["d4", "Nf6", "c4", "e6", "Nf3"],
+            "opening": "Queen's Indian Defense",
+        },
+        {
+            "white": "PlayerA",
+            "black": "PlayerC",
+            "result": "0-1",
+            "player_color": "white",
+            "moves": ["c4", "e6", "d4", "Nf6", "Nc3"],
+            "opening": "English Opening",
+        }
+    ]
+
+    root, fen_map = build_opening_tree(games)
+    assert root.games_count == 2
+    assert root.wins == 1
+    assert root.losses == 1
+
+    # Transposed position reached after: 1. d4 Nf6 2. c4 e6
+    b1 = chess.Board()
+    for m in ["d4", "Nf6", "c4", "e6"]:
+        b1.push_san(m)
+    transposed_fen = b1.fen()
+
+    details = get_position_details(fen_map, transposed_fen)
+    assert details["in_pgn"] is True
+    # Must aggregate BOTH games (not overwritten to 1)
+    assert details["total_games"] == 2
+    assert details["wins"] == 1
+    assert details["losses"] == 1
+    assert details["score_pct"] == 50.0
+
+    # Continuations from this position should contain both Nf3 and Nc3
+    conts = {c["san"]: c for c in details["continuations"]}
+    assert "Nf3" in conts
+    assert "Nc3" in conts
+    assert conts["Nf3"]["games_count"] == 1
+    assert conts["Nf3"]["wins"] == 1
+    assert conts["Nf3"]["score_pct"] == 100.0
+    assert conts["Nc3"]["games_count"] == 1
+    assert conts["Nc3"]["losses"] == 1
+    assert conts["Nc3"]["score_pct"] == 0.0
+
+
+def test_opening_tree_color_filtering():
+    """Kiểm tra xây dựng cây khai cuộc theo bộ lọc màu quân Trắng/Đen/Tất cả."""
+    mixed_games = [
+        {
+            "white": "Hero",
+            "black": "Rival1",
+            "result": "1-0",
+            "player_color": "white",
+            "moves": ["e4", "e5", "Nf3"],
+            "opening": "King's Knight Opening",
+        },
+        {
+            "white": "Rival2",
+            "black": "Hero",
+            "result": "0-1",
+            "player_color": "black",
+            "moves": ["d4", "d5", "c4"],
+            "opening": "Queen's Gambit",
+        }
+    ]
+
+    # 1. White only
+    root_w, fen_map_w = build_opening_tree(mixed_games, color="white")
+    assert root_w.games_count == 1
+    start_fen = chess.Board().fen()
+    details_w = get_position_details(fen_map_w, start_fen)
+    assert len(details_w["continuations"]) == 1
+    assert details_w["continuations"][0]["san"] == "e4"
+    assert details_w["continuations"][0]["score_pct"] == 100.0
+
+    # 2. Black only
+    root_b, fen_map_b = build_opening_tree(mixed_games, color="black")
+    assert root_b.games_count == 1
+    details_b = get_position_details(fen_map_b, start_fen)
+    assert len(details_b["continuations"]) == 1
+    assert details_b["continuations"][0]["san"] == "d4"
+    assert details_b["continuations"][0]["score_pct"] == 100.0
+
+    # 3. All games
+    root_all, fen_map_all = build_opening_tree(mixed_games, color="all")
+    assert root_all.games_count == 2
+    details_all = get_position_details(fen_map_all, start_fen)
+    assert len(details_all["continuations"]) == 2
+
+
+def test_determine_game_outcome():
+    """Kiểm tra hàm determine_game_outcome với các định dạng kết quả PGN khác nhau."""
+    from src.utils import determine_game_outcome
+
+    # White wins
+    assert determine_game_outcome("white", "1-0") == (True, False, False)
+    assert determine_game_outcome("white", " 1-0 ") == (True, False, False)
+    assert determine_game_outcome("white", "0-1") == (False, False, True)
+
+    # Black wins
+    assert determine_game_outcome("black", "0-1") == (True, False, False)
+    assert determine_game_outcome("black", "1-0") == (False, False, True)
+
+    # Draws
+    assert determine_game_outcome("white", "1/2-1/2") == (False, True, False)
+    assert determine_game_outcome("black", "1/2-1/2") == (False, True, False)
+    assert determine_game_outcome("white", "1/2") == (False, True, False)
+    assert determine_game_outcome("white", "½-½") == (False, True, False)
+
+    # Unknown
+    assert determine_game_outcome("white", "*") == (False, False, False)
+
+
+def test_load_opening_onto_board_color_sync(monkeypatch):
+    """Kiểm tra load_opening_onto_board đồng bộ màu quân và thiết lập trạng thái."""
+    import streamlit as st
+    from app import load_opening_onto_board
+
+    # Mock st.rerun to prevent script termination during test
+    monkeypatch.setattr(st, "rerun", lambda: None)
+
+    st.session_state.chess_board = chess.Board()
+    st.session_state.move_history = []
+    st.session_state.full_analysis_line = []
+    st.session_state.analysis_color_filter = "all"
+    st.session_state.board_orientation = "white"
+
+    games = [
+        {
+            "white": "Hero",
+            "black": "Rival",
+            "result": "1-0",
+            "player_color": "white",
+            "moves": ["e4", "c5", "Nf3", "d6", "d4"],
+            "opening": "Sicilian Defense",
+        },
+        {
+            "white": "Rival",
+            "black": "Hero",
+            "result": "0-1",
+            "player_color": "black",
+            "moves": ["d4", "Nf6", "c4", "g6"],
+            "opening": "King's Indian Defense",
+        }
+    ]
+
+    # Load Sicilian as White
+    load_opening_onto_board("Sicilian Defense", games, color="white")
+    assert st.session_state.analysis_color_filter == "white"
+    assert st.session_state.board_orientation == "white"
+    assert st.session_state.active_nav_page == "Analyze"
+    assert len(st.session_state.move_history) > 0
+    assert st.session_state.move_history[0] == "e4"
+
+    # Load King's Indian as Black
+    load_opening_onto_board("King's Indian Defense", games, color="black")
+    assert st.session_state.analysis_color_filter == "black"
+    assert st.session_state.board_orientation == "black"
+    assert st.session_state.active_nav_page == "Analyze"
+    assert len(st.session_state.move_history) > 0
+    assert st.session_state.move_history[0] == "d4"
+
+
+
+

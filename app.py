@@ -90,8 +90,17 @@ if "online_pgn_name" not in st.session_state:
     st.session_state.online_pgn_name = ""
 
 # Memoization Cache trong Session State
+if "analysis_color_filter" not in st.session_state:
+    st.session_state.analysis_color_filter = "all"
+
 if "cached_fen_map" not in st.session_state:
     st.session_state.cached_fen_map = {}
+
+if "cached_fen_map_white" not in st.session_state:
+    st.session_state.cached_fen_map_white = {}
+
+if "cached_fen_map_black" not in st.session_state:
+    st.session_state.cached_fen_map_black = {}
 
 if "cached_stats" not in st.session_state:
     st.session_state.cached_stats = {}
@@ -359,13 +368,25 @@ def find_moves_for_opening(opening_name: str, filtered_games: list) -> list:
     return []
 
 
-def load_opening_onto_board(opening_name: str, filtered_games: list):
+def load_opening_onto_board(opening_name: str, filtered_games: list, color: str = None):
     """
     Nạp biến khai cuộc lên bàn cờ tương tác và mở trang Analyze Games.
     Sử dụng Position & Transposition Analysis để tìm thế cờ đặc trưng (canonical position)
-    và nạp chuỗi nước đi đại diện (representative line) lên bàn cờ.
+    và nạp chuỗi nước đi đại diện (representative line) lên bàn cờ theo màu quân tương ứng.
     """
-    matching_games = get_games_for_opening(opening_name, filtered_games)
+    if color and color.lower() in ["white", "black"]:
+        target_color = color.lower()
+        st.session_state.analysis_color_filter = target_color
+        st.session_state.board_orientation = target_color
+        games_subset = [g for g in filtered_games if str(g.get("player_color", "")).lower() == target_color]
+        if not games_subset:
+            games_subset = filtered_games
+    else:
+        games_subset = filtered_games
+
+    matching_games = get_games_for_opening(opening_name, games_subset)
+    if not matching_games and games_subset is not filtered_games:
+        matching_games = get_games_for_opening(opening_name, filtered_games)
 
     if len(matching_games) == 1:
         load_single_game_onto_board(matching_games[0])
@@ -373,7 +394,7 @@ def load_opening_onto_board(opening_name: str, filtered_games: list):
 
     common_moves = find_representative_line_for_games(matching_games)
     if not common_moves:
-        common_moves = find_moves_for_opening(opening_name, filtered_games)
+        common_moves = find_moves_for_opening(opening_name, matching_games if matching_games else games_subset)
 
     st.session_state.chess_board.reset()
     st.session_state.move_history = []
@@ -445,6 +466,27 @@ def load_pawn_structure_onto_board(structure_info: dict):
 
 @st.fragment
 def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
+    all_player_games = st.session_state.get("cached_filtered_games", [])
+    total_cnt = len(all_player_games)
+    white_cnt = sum(1 for g in all_player_games if str(g.get("player_color", "")).lower() == "white")
+    black_cnt = sum(1 for g in all_player_games if str(g.get("player_color", "")).lower() == "black")
+
+    current_filter = st.session_state.get("analysis_color_filter", "all")
+
+    # Select active fen_map based on color filter
+    if current_filter == "white":
+        if not st.session_state.get("cached_fen_map_white") and all_player_games:
+            _, fm_w = build_opening_tree(all_player_games, color="white")
+            st.session_state.cached_fen_map_white = fm_w
+        active_fen_map = st.session_state.get("cached_fen_map_white", {})
+    elif current_filter == "black":
+        if not st.session_state.get("cached_fen_map_black") and all_player_games:
+            _, fm_b = build_opening_tree(all_player_games, color="black")
+            st.session_state.cached_fen_map_black = fm_b
+        active_fen_map = st.session_state.get("cached_fen_map_black", {})
+    else:
+        active_fen_map = fen_map or st.session_state.get("cached_fen_map", {})
+
     col_board, col_right = st.columns([5.5, 6.5])
 
     current_fen = st.session_state.chess_board.fen()
@@ -506,7 +548,7 @@ def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
         with st.expander(t("show_fen", lang=lang), expanded=False):
             st.code(current_fen, language="text")
 
-    # Right Column: Move History (top) + Opening Tree Continuations (bottom)
+    # Right Column: Move History (top) + Color Filter + Opening Tree Continuations (bottom)
     with col_right:
         full_line = st.session_state.full_analysis_line
         current_ply = len(st.session_state.move_history) - 1
@@ -519,7 +561,7 @@ def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
             hist_event = render_move_history_component(
                 moves=full_line,
                 current_ply=current_ply,
-                height=160,
+                height=150,
                 key="main_move_history_component"
             )
 
@@ -531,12 +573,58 @@ def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
                     jump_to_move_index(target_ply)
                     st.rerun()
 
-        st.markdown("<div style='margin-bottom:8px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-bottom:6px;'></div>", unsafe_allow_html=True)
 
-        pos_details = get_position_details(fen_map, current_fen)
+        # Color Filter Control
+        flt_col1, flt_col2, flt_col3 = st.columns(3)
+        with flt_col1:
+            is_all = current_filter == "all"
+            if st.button(
+                f"🔄 {t('tree_filter_all', lang=lang, count=total_cnt)}",
+                key="btn_flt_all",
+                type="primary" if is_all else "secondary",
+                use_container_width=True
+            ):
+                st.session_state.analysis_color_filter = "all"
+                st.rerun()
+
+        with flt_col2:
+            is_white = current_filter == "white"
+            if st.button(
+                f"⚪ {t('tree_filter_white', lang=lang, count=white_cnt)}",
+                key="btn_flt_white",
+                type="primary" if is_white else "secondary",
+                use_container_width=True
+            ):
+                st.session_state.analysis_color_filter = "white"
+                st.session_state.board_orientation = "white"
+                st.rerun()
+
+        with flt_col3:
+            is_black = current_filter == "black"
+            if st.button(
+                f"⚫ {t('tree_filter_black', lang=lang, count=black_cnt)}",
+                key="btn_flt_black",
+                type="primary" if is_black else "secondary",
+                use_container_width=True
+            ):
+                st.session_state.analysis_color_filter = "black"
+                st.session_state.board_orientation = "black"
+                st.rerun()
+
+        st.markdown("<div style='margin-bottom:6px;'></div>", unsafe_allow_html=True)
+
+        pos_details = get_position_details(active_fen_map, current_fen)
 
         with st.container(border=True):
-            st.markdown(f"<div style='font-size:15px; font-weight:700; color:#0F172A; margin-bottom:8px;'>{tree_icon} {t('opening_tree_continuations', lang=lang)}</div>", unsafe_allow_html=True)
+            if current_filter == "white":
+                filter_suffix = f"<span style='font-size:12px; font-weight:600; color:#475569;'> (⚪ {t('white_repertoire', lang=lang)} - {white_cnt} ván)</span>"
+            elif current_filter == "black":
+                filter_suffix = f"<span style='font-size:12px; font-weight:600; color:#475569;'> (⚫ {t('black_repertoire', lang=lang)} - {black_cnt} ván)</span>"
+            else:
+                filter_suffix = f"<span style='font-size:12px; font-weight:600; color:#475569;'> ({total_cnt} ván)</span>"
+
+            st.markdown(f"<div style='font-size:15px; font-weight:700; color:#0F172A; margin-bottom:8px;'>{tree_icon} {t('opening_tree_continuations', lang=lang)}{filter_suffix}</div>", unsafe_allow_html=True)
 
             continuations = pos_details["continuations"]
 
@@ -568,8 +656,9 @@ def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
                     if g_count == 1 and sg:
                         c1, c_game, c_link = st.columns([1.5, 6.2, 1.0])
                         with c1:
-                            if st.button(san, icon=":material/play_arrow:", key=f"tree_move_{san}_{len(st.session_state.move_history)}", use_container_width=True):
-                                load_single_game_onto_board(sg)
+                            if st.button(san, icon=":material/play_arrow:", key=f"tree_move_{san}_{len(st.session_state.move_history)}", use_container_width=True, help=f"Đi tiếp nước {san}"):
+                                push_move(san)
+                                st.rerun()
 
                         w_name = sg.get("white", "White")
                         w_elo = f"({sg['white_elo']})" if sg.get("white_elo") and sg["white_elo"] > 0 else ""
@@ -581,7 +670,7 @@ def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
                         game_label = f"{w_name}{w_elo} {res} {b_name}{b_elo}"
 
                         with c_game:
-                            if st.button(game_label, icon=":material/visibility:", key=f"tree_game_{san}_{len(st.session_state.move_history)}", use_container_width=True):
+                            if st.button(game_label, icon=":material/visibility:", key=f"tree_game_{san}_{len(st.session_state.move_history)}", use_container_width=True, help=t("view_single_game_hint", lang=lang)):
                                 load_single_game_onto_board(sg)
 
                         with c_link:
@@ -731,12 +820,12 @@ with st.sidebar:
                     stats = calculate_game_stats(filtered_games)
                     st.session_state.cached_stats = stats
 
-                    tree_result = build_opening_tree(filtered_games)
-                    if isinstance(tree_result, tuple) and len(tree_result) == 2:
-                        _, fen_map = tree_result
-                    else:
-                        fen_map = tree_result
-                    st.session_state.cached_fen_map = fen_map
+                    _, fen_map_all = build_opening_tree(filtered_games, color="all")
+                    _, fen_map_white = build_opening_tree(filtered_games, color="white")
+                    _, fen_map_black = build_opening_tree(filtered_games, color="black")
+                    st.session_state.cached_fen_map = fen_map_all
+                    st.session_state.cached_fen_map_white = fen_map_white
+                    st.session_state.cached_fen_map_black = fen_map_black
 
                     repertoire_data = analyze_opening_repertoire(filtered_games)
                     st.session_state.cached_repertoire = repertoire_data
@@ -1434,10 +1523,10 @@ elif active_page in ["Profile", "Performance"]:
                             if st.button(
                                 f"♟ {item['name']}",
                                 key=f"prof_w_op_btn_{idx}_{item['name']}",
-                                help=f"Bấm để nạp {item['name']} lên Bàn cờ Phân tích" if current_lang == "vi" else f"Click to load {item['name']} onto Analysis Board",
+                                help=f"Bấm để nạp {item['name']} lên Bàn cờ Phân tích (Cầm Trắng)" if current_lang == "vi" else f"Click to load {item['name']} onto Analysis Board (as White)",
                                 use_container_width=True
                             ):
-                                load_opening_onto_board(item['name'], st.session_state.cached_filtered_games)
+                                load_opening_onto_board(item['name'], st.session_state.cached_filtered_games, color="white")
                         with w2:
                             st.markdown(f"<div style='padding-top:6px; color:#475569;'>{item['games_count']}</div>", unsafe_allow_html=True)
                         with w3:
@@ -1477,10 +1566,10 @@ elif active_page in ["Profile", "Performance"]:
                             if st.button(
                                 f"♟ {item['name']}",
                                 key=f"prof_b_op_btn_{idx}_{item['name']}",
-                                help=f"Bấm để nạp {item['name']} lên Bàn cờ Phân tích" if current_lang == "vi" else f"Click to load {item['name']} onto Analysis Board",
+                                help=f"Bấm để nạp {item['name']} lên Bàn cờ Phân tích (Cầm Đen)" if current_lang == "vi" else f"Click to load {item['name']} onto Analysis Board (as Black)",
                                 use_container_width=True
                             ):
-                                load_opening_onto_board(item['name'], st.session_state.cached_filtered_games)
+                                load_opening_onto_board(item['name'], st.session_state.cached_filtered_games, color="black")
                         with b2:
                             st.markdown(f"<div style='padding-top:6px; color:#475569;'>{item['games_count']}</div>", unsafe_allow_html=True)
                         with b3:
@@ -1783,6 +1872,9 @@ elif active_page == "Settings":
             st.session_state.online_pgn_bytes = None
             st.session_state.online_pgn_name = ""
             st.session_state.cached_fen_map = {}
+            st.session_state.cached_fen_map_white = {}
+            st.session_state.cached_fen_map_black = {}
+            st.session_state.analysis_color_filter = "all"
             st.session_state.cached_stats = {}
             st.session_state.cached_repertoire = {}
             st.session_state.cached_filtered_games = []

@@ -8,6 +8,9 @@ và tỷ lệ hiệu suất thi đấu theo tổng thể cũng như theo màu qu
 from typing import List, Dict, Any
 
 
+from src.utils import determine_game_outcome
+
+
 def calculate_score_percentage(wins: int, draws: int, total: int) -> float:
     """
     Tính phần trăm điểm số theo công thức chuẩn cờ vua:
@@ -74,21 +77,10 @@ def calculate_game_stats(filtered_games: List[Dict[str, Any]]) -> Dict[str, Any]
     black_losses = 0
 
     for g in filtered_games:
-        color = g.get("player_color")
+        color = g.get("player_color", "white")
         result = g.get("result", "*")
 
-        is_win = False
-        is_draw = False
-        is_loss = False
-
-        if result == "1/2-1/2":
-            is_draw = True
-        elif color == "white" and result == "1-0":
-            is_win = True
-        elif color == "black" and result == "0-1":
-            is_win = True
-        elif (color == "white" and result == "0-1") or (color == "black" and result == "1-0"):
-            is_loss = True
+        is_win, is_draw, is_loss = determine_game_outcome(color, result)
 
         if is_win:
             wins += 1

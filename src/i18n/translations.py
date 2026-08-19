@@ -199,6 +199,11 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "col_score": "Điểm số",
         "show_fen": "Hiển thị FEN thế cờ",
         "move_history_title": "Lịch sử nước đi",
+        "tree_filter_label": "Màu quân của đối thủ:",
+        "tree_filter_all": "Tất cả ({count})",
+        "tree_filter_white": "Cầm Trắng ({count})",
+        "tree_filter_black": "Cầm Đen ({count})",
+        "view_single_game_hint": "Xem ván đấu nguồn",
 
         # Metric Cards
         "metric_games": "SỐ VÁN",
@@ -514,6 +519,11 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "col_score": "Score",
         "show_fen": "Show Position FEN",
         "move_history_title": "Move History",
+        "tree_filter_label": "Opponent Color:",
+        "tree_filter_all": "All ({count})",
+        "tree_filter_white": "As White ({count})",
+        "tree_filter_black": "As Black ({count})",
+        "view_single_game_hint": "View source game",
 
         # Metric Cards
         "metric_games": "GAMES",

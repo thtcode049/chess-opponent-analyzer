@@ -8,6 +8,7 @@ tự động (Rule-Based Insights) hỗ trợ người chơi nhận diện phong
 from typing import List, Dict, Any, Optional
 from src.i18n import t
 from src.ui_components import get_icon_svg
+from src.utils import determine_game_outcome
 
 
 from src.analysis.statistical_confidence import (
@@ -74,18 +75,12 @@ def analyze_opening_repertoire(
         player_color = game.get("player_color", "white")
         result = game.get("result", "*")
 
-        is_win = False
-        is_draw = False
-        is_loss = False
-
-        if result == "1/2-1/2":
-            is_draw = True
-            total_draws += 1
-        elif (player_color == "white" and result == "1-0") or (player_color == "black" and result == "0-1"):
-            is_win = True
+        is_win, is_draw, is_loss = determine_game_outcome(player_color, result)
+        if is_win:
             total_wins += 1
-        elif (player_color == "white" and result == "0-1") or (player_color == "black" and result == "1-0"):
-            is_loss = True
+        elif is_draw:
+            total_draws += 1
+        elif is_loss:
             total_losses += 1
 
         def _update_stats(target_dict: dict, op_name: str, g_item: dict):
