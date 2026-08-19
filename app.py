@@ -14,7 +14,7 @@ from src.match_prep import generate_match_preparation, generate_actionable_match
 from src.report_generator import generate_markdown_report
 from src.online_fetcher import fetch_lichess_games, fetch_chesscom_games
 from src.engine.stockfish_engine import StockfishEngine
-from src.engine.evaluator import batch_analyze_games
+from src.engine.evaluator import batch_analyze_games, get_comprehensive_move_evaluations, parallel_batch_analyze_games
 from src.i18n import t
 from src.ui_components import (
     apply_global_styles,
@@ -24,6 +24,7 @@ from src.ui_components import (
     PastelCard,
     EmptyState,
     RenderDataTable,
+    AnalysisProgressTracker,
     COLOR_WIN,
     COLOR_DRAW,
     COLOR_LOSS,
@@ -830,13 +831,12 @@ with st.sidebar:
                     repertoire_data = analyze_opening_repertoire(filtered_games)
                     st.session_state.cached_repertoire = repertoire_data
 
-                    # Pre-compute Stockfish evaluations automatically at fast depth=6
+                    # Pre-compute comprehensive evaluations (embedded PGN evals or parallel Stockfish)
                     st.session_state.cached_move_evaluations = None
-                    engine = get_stockfish_engine()
-                    if engine.is_available() and filtered_games:
-                        batch_res = batch_analyze_games(filtered_games, engine, max_games=10, depth=6)
-                        if batch_res.get("available"):
-                            st.session_state.cached_move_evaluations = batch_res.get("move_evaluations", [])
+                    if filtered_games:
+                        comp_res = get_comprehensive_move_evaluations(filtered_games, depth=8, max_stockfish_games=20)
+                        if comp_res.get("available"):
+                            st.session_state.cached_move_evaluations = comp_res.get("move_evaluations", [])
 
                     # Pre-compute Deep Profile & store in session state for instant load
                     st.session_state.cached_deep_profile = generate_deep_opponent_profile(
@@ -1182,12 +1182,13 @@ elif active_page in ["Profile", "Performance"]:
             st.session_state.active_nav_page = "Import"
             st.rerun()
     else:
-        stats = st.session_state.cached_stats
+        filtered_games = st.session_state.cached_filtered_games or []
+        stats = st.session_state.cached_stats or {}
         engine = get_stockfish_engine()
 
         # Automatic Stockfish engine execution if evaluations are not yet cached
-        if st.session_state.cached_move_evaluations is None and engine.is_available() and st.session_state.cached_filtered_games:
-            batch_res = batch_analyze_games(st.session_state.cached_filtered_games, engine, max_games=10, depth=6)
+        if st.session_state.cached_move_evaluations is None and engine.is_available() and filtered_games:
+            batch_res = get_comprehensive_move_evaluations(filtered_games, depth=8, max_stockfish_games=20)
             if batch_res.get("available"):
                 st.session_state.cached_move_evaluations = batch_res.get("move_evaluations", [])
                 st.session_state.cached_deep_profile = None
@@ -1219,7 +1220,7 @@ elif active_page in ["Profile", "Performance"]:
         with head_col2:
             with st.container(border=True):
                 if engine.is_available():
-                    st.success("🟢 Stockfish Active (Depth 6)", icon="🤖")
+                    st.success("🟢 Stockfish Active (Depth 8)", icon="🤖")
                     st.caption("Đã tự động phân tích thế cờ ở nền." if current_lang == "vi" else "Positions automatically analyzed in background.")
                 else:
                     st.warning("⚠️ Engine Unavailable", icon="🤖")
@@ -1395,6 +1396,58 @@ elif active_page in ["Profile", "Performance"]:
                     st.markdown(f"<div style='padding-top:6px; font-weight:700; color:{color};'>{status}</div>", unsafe_allow_html=True)
 
                 st.markdown("<div style='margin-bottom:6px;'></div>", unsafe_allow_html=True)
+
+            # Check coverage of evaluated games and provide On-Demand Deep Analysis button
+            total_filtered_games_count = len(filtered_games)
+            analyzed_indices = set(e["game_index"] for e in (st.session_state.cached_move_evaluations or []) if "game_index" in e)
+            analyzed_games_count = len(analyzed_indices)
+
+            st.markdown("<hr style='margin:12px 0 10px 0; border:0; border-top:1px dashed #E2E8F0;'>", unsafe_allow_html=True)
+            
+            if total_filtered_games_count > analyzed_games_count and total_filtered_games_count > 0:
+                dc1, dc2 = st.columns([7, 3])
+                with dc1:
+                    st.markdown(
+                        f"**🔬 Phân tích Chuyên sâu Toàn bộ**  \n"
+                        f"<span style='font-size:12.5px; color:#64748B;'>"
+                        f"Đang hiển thị mẫu từ **{analyzed_games_count}/{total_filtered_games_count} ván**. Bấm nút để kích hoạt cụm Stockfish đa luồng phân tích toàn bộ 100% {total_filtered_games_count} ván:"
+                        f"</span>" if current_lang == "vi" else
+                        f"**🔬 Deep Analysis On-Demand**  \n"
+                        f"<span style='font-size:12.5px; color:#64748B;'>"
+                        f"Showing sample of **{analyzed_games_count}/{total_filtered_games_count} games**. Click to run multi-threaded Stockfish on all {total_filtered_games_count} games:"
+                        f"</span>",
+                        unsafe_allow_html=True
+                    )
+                with dc2:
+                    if st.button(
+                        f"🚀 Phân tích {total_filtered_games_count} ván" if current_lang == "vi" else f"🚀 Analyze All {total_filtered_games_count} Games",
+                        type="primary",
+                        use_container_width=True,
+                        key="phase_deep_scan_btn"
+                    ):
+                        progress_bar = st.progress(0, text="Đang khởi chạy Stockfish đa luồng..." if current_lang == "vi" else "Launching parallel Stockfish...")
+                        def _on_prog(cur, tot):
+                            pct = min(1.0, float(cur) / max(1, tot))
+                            progress_bar.progress(pct, text=f"Đang phân tích ván {cur}/{tot} (Bỏ qua {analyzed_games_count} ván có sẵn)..." if current_lang == "vi" else f"Analyzing game {cur}/{tot} (Skipped {analyzed_games_count} cached games)...")
+
+                        deep_eval_res = parallel_batch_analyze_games(
+                            filtered_games,
+                            depth=8,
+                            max_games=total_filtered_games_count,
+                            progress_callback=_on_prog,
+                            existing_evaluations=st.session_state.cached_move_evaluations
+                        )
+                        progress_bar.progress(1.0, text="Hoàn tất phân tích chuyên sâu!" if current_lang == "vi" else "Deep analysis complete!")
+                        st.session_state.cached_move_evaluations = deep_eval_res.get("move_evaluations", [])
+                        st.session_state.cached_deep_profile = generate_deep_opponent_profile(
+                            filtered_games,
+                            stats,
+                            move_evaluations=st.session_state.cached_move_evaluations,
+                            lang=current_lang
+                        )
+                        st.rerun()
+            else:
+                st.caption(f"✅ Đã phân tích toàn diện 100% dữ liệu ({total_filtered_games_count}/{total_filtered_games_count} ván đấu)" if current_lang == "vi" else f"✅ Comprehensive 100% analysis completed ({total_filtered_games_count}/{total_filtered_games_count} games)")
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
@@ -1758,10 +1811,71 @@ elif active_page == "Import":
             if file_up is not None:
                 new_bytes = file_up.getvalue()
                 if st.session_state.online_pgn_bytes != new_bytes:
+                    progress_placeholder = st.empty()
+                    steps_def = [
+                        {"id": "parse", "title": f"Bóc tách dữ liệu từ file {file_up.name}" if current_lang == "vi" else f"Parse data from {file_up.name}"},
+                        {"id": "tree", "title": "Xây dựng Cây Khai cuộc Trắng / Đen" if current_lang == "vi" else "Build Opening Trees (White / Black / All)"},
+                        {"id": "engine", "title": "Phân tích chuyên sâu (Đánh giá có sẵn / Đa luồng)" if current_lang == "vi" else "Deep Analysis (Embedded Evals / Parallel Engine)"},
+                        {"id": "ready", "title": "Nạp bàn cờ phân tích và hoàn tất" if current_lang == "vi" else "Prepare Analysis Board & Finalize"},
+                    ]
+                    tracker = AnalysisProgressTracker(
+                        progress_placeholder,
+                        steps_def,
+                        title=f"Tiến trình nạp file PGN: {file_up.name}" if current_lang == "vi" else f"PGN File Processing: {file_up.name}",
+                        lang=current_lang
+                    )
+
+                    # Step 1: Parse
+                    tracker.set_step_running("parse", "Đang bóc tách PGN..." if current_lang == "vi" else "Parsing PGN...")
+                    all_games = cached_parse_pgn(new_bytes)
+                    primary_player = detect_primary_player(all_games)
+                    target_player = primary_player if primary_player else "Unknown Player"
+                    tracker.set_step_done("parse", f"Đã nhận diện {len(all_games)} ván đấu (Kỳ thủ: {target_player})" if current_lang == "vi" else f"Found {len(all_games)} games (Player: {target_player})")
+
+                    # Step 2: Tree
+                    tracker.set_step_running("tree", "Đang tính toán các biến và thống kê..." if current_lang == "vi" else "Computing variations & statistics...")
+                    filtered_games = filter_games_by_player(all_games, target_player)
+                    stats = calculate_game_stats(filtered_games)
+                    _, fen_map_all = build_opening_tree(filtered_games, color="all")
+                    _, fen_map_white = build_opening_tree(filtered_games, color="white")
+                    _, fen_map_black = build_opening_tree(filtered_games, color="black")
+                    repertoire_data = analyze_opening_repertoire(filtered_games)
+                    tracker.set_step_done("tree", f"Đã tạo 3 cây khai cuộc (Tất cả: {len(fen_map_all)}, Trắng: {len(fen_map_white)}, Đen: {len(fen_map_black)} thế cờ)" if current_lang == "vi" else f"Built 3 opening trees (All, White, Black)")
+
+                    # Step 3: Engine
+                    tracker.set_step_running("engine", "Đang đánh giá chất lượng nước đi..." if current_lang == "vi" else "Evaluating positions & pawn structures...")
+                    comp_res = get_comprehensive_move_evaluations(filtered_games, depth=8, max_stockfish_games=20)
+                    move_evals = comp_res.get("move_evaluations", []) if comp_res.get("available") else None
+                    if comp_res.get("source") == "embedded_pgn":
+                        eval_msg = f"Đã trích xuất đánh giá chất lượng cao từ {comp_res.get('analyzed_games', 0)} ván đấu (0s)" if current_lang == "vi" else f"Extracted embedded evaluations from {comp_res.get('analyzed_games', 0)} games (0s)"
+                    else:
+                        eval_msg = f"Đã phân tích đa luồng ({comp_res.get('analyzed_games', 0)} ván đấu)" if current_lang == "vi" else f"Parallel analyzed {comp_res.get('analyzed_games', 0)} games"
+
+                    deep_profile = generate_deep_opponent_profile(
+                        filtered_games,
+                        stats,
+                        move_evaluations=move_evals,
+                        lang=current_lang
+                    )
+                    tracker.set_step_done("engine", eval_msg)
+
+                    # Step 4: Ready
+                    tracker.set_step_running("ready", "Đang nạp bàn cờ..." if current_lang == "vi" else "Loading board...")
                     st.session_state.online_pgn_bytes = new_bytes
                     st.session_state.online_pgn_name = file_up.name
+                    st.session_state.last_selected_player = target_player
+                    st.session_state.cached_filtered_games = filtered_games
+                    st.session_state.cached_stats = stats
+                    st.session_state.cached_fen_map = fen_map_all
+                    st.session_state.cached_fen_map_white = fen_map_white
+                    st.session_state.cached_fen_map_black = fen_map_black
+                    st.session_state.cached_repertoire = repertoire_data
+                    st.session_state.cached_move_evaluations = move_evals
+                    st.session_state.cached_deep_profile = deep_profile
+                    st.session_state.cached_profile_lang = current_lang
+                    tracker.set_step_done("ready", "Sẵn sàng phân tích!" if current_lang == "vi" else "Ready to analyze!")
+
                     st.session_state.active_nav_page = "Analyze"
-                    st.success(f"Đã nạp file PGN: {file_up.name}")
                     st.rerun()
 
     with col_on:
@@ -1789,20 +1903,86 @@ elif active_page == "Import":
 
             if st.button(t("btn_fetch_games", lang=current_lang), type="primary", use_container_width=True, key="import_page_fetch_online_btn"):
                 if online_user.strip():
-                    with st.spinner(t("fetching_spinner", lang=current_lang)):
-                        if platform == "Lichess":
-                            pgn_bytes, err = fetch_lichess_games(online_user, max_games, perf_types=selected_game_types)
-                        else:
-                            pgn_bytes, err = fetch_chesscom_games(online_user, max_games, perf_types=selected_game_types)
+                    progress_placeholder = st.empty()
+                    steps_def = [
+                        {"id": "fetch", "title": f"Tải {max_games} ván đấu của {online_user} từ {platform}" if current_lang == "vi" else f"Fetch {max_games} games for {online_user} from {platform}"},
+                        {"id": "parse", "title": "Bóc tách dữ liệu PGN và phát hiện kỳ thủ" if current_lang == "vi" else "Parse PGN data & detect opponent"},
+                        {"id": "tree", "title": "Xây dựng Cây Khai cuộc Trắng / Đen" if current_lang == "vi" else "Build Opening Trees (White / Black / All)"},
+                        {"id": "engine", "title": "Phân tích chuyên sâu (Đánh giá có sẵn / Đa luồng)" if current_lang == "vi" else "Deep Analysis (Embedded Evals / Parallel Engine)"},
+                        {"id": "ready", "title": "Nạp bàn cờ phân tích và hoàn tất" if current_lang == "vi" else "Prepare Analysis Board & Finalize"},
+                    ]
+                    tracker = AnalysisProgressTracker(
+                        progress_placeholder,
+                        steps_def,
+                        title=f"Tiến trình nạp và phân tích ván đấu ({platform})" if current_lang == "vi" else f"Data Loading & Analysis Pipeline ({platform})",
+                        lang=current_lang
+                    )
 
-                        if err:
-                            st.error(err)
-                        elif pgn_bytes:
-                            st.session_state.online_pgn_bytes = pgn_bytes
-                            st.session_state.online_pgn_name = f"{platform}_{online_user}.pgn"
-                            st.session_state.active_nav_page = "Analyze"
-                            st.success(t("fetch_success", lang=current_lang, count=max_games, platform=platform))
-                            st.rerun()
+                    # Step 1: Fetch
+                    tracker.set_step_running("fetch", "Đang kết nối máy chủ..." if current_lang == "vi" else "Connecting to server...")
+                    if platform == "Lichess":
+                        pgn_bytes, err = fetch_lichess_games(online_user, max_games, perf_types=selected_game_types)
+                    else:
+                        pgn_bytes, err = fetch_chesscom_games(online_user, max_games, perf_types=selected_game_types)
+
+                    if err:
+                        tracker.set_step_error("fetch", f"Lỗi tải ván đấu: {err}" if current_lang == "vi" else f"Fetch error: {err}")
+                        st.error(err)
+                    elif pgn_bytes:
+                        tracker.set_step_done("fetch", f"Đã tải thành công ván đấu từ {platform}" if current_lang == "vi" else f"Successfully fetched games from {platform}")
+
+                        # Step 2: Parse
+                        tracker.set_step_running("parse", "Đang bóc tách PGN..." if current_lang == "vi" else "Parsing PGN...")
+                        all_games = cached_parse_pgn(pgn_bytes)
+                        primary_player = detect_primary_player(all_games)
+                        target_player = primary_player if primary_player else online_user
+                        tracker.set_step_done("parse", f"Đã nhận diện {len(all_games)} ván đấu (Kỳ thủ: {target_player})" if current_lang == "vi" else f"Found {len(all_games)} games (Player: {target_player})")
+
+                        # Step 3: Tree
+                        tracker.set_step_running("tree", "Đang tính toán các biến và thống kê..." if current_lang == "vi" else "Computing variations & statistics...")
+                        filtered_games = filter_games_by_player(all_games, target_player)
+                        stats = calculate_game_stats(filtered_games)
+                        _, fen_map_all = build_opening_tree(filtered_games, color="all")
+                        _, fen_map_white = build_opening_tree(filtered_games, color="white")
+                        _, fen_map_black = build_opening_tree(filtered_games, color="black")
+                        repertoire_data = analyze_opening_repertoire(filtered_games)
+                        tracker.set_step_done("tree", f"Đã tạo 3 cây khai cuộc (Tất cả: {len(fen_map_all)}, Trắng: {len(fen_map_white)}, Đen: {len(fen_map_black)} thế cờ)" if current_lang == "vi" else f"Built 3 opening trees (All, White, Black)")
+
+                        # Step 4: Engine & Deep Profile
+                        tracker.set_step_running("engine", "Đang đánh giá chất lượng nước đi..." if current_lang == "vi" else "Evaluating positions & pawn structures...")
+                        comp_res = get_comprehensive_move_evaluations(filtered_games, depth=8, max_stockfish_games=20)
+                        move_evals = comp_res.get("move_evaluations", []) if comp_res.get("available") else None
+                        if comp_res.get("source") == "embedded_pgn":
+                            eval_msg = f"Đã trích xuất đánh giá chất lượng cao từ {comp_res.get('analyzed_games', 0)} ván đấu (0s)" if current_lang == "vi" else f"Extracted embedded evaluations from {comp_res.get('analyzed_games', 0)} games (0s)"
+                        else:
+                            eval_msg = f"Đã phân tích đa luồng ({comp_res.get('analyzed_games', 0)} ván đấu)" if current_lang == "vi" else f"Parallel analyzed {comp_res.get('analyzed_games', 0)} games"
+
+                        deep_profile = generate_deep_opponent_profile(
+                            filtered_games,
+                            stats,
+                            move_evaluations=move_evals,
+                            lang=current_lang
+                        )
+                        tracker.set_step_done("engine", eval_msg)
+
+                        # Step 5: Ready
+                        tracker.set_step_running("ready", "Đang lưu bộ nhớ và chuyển trang..." if current_lang == "vi" else "Saving state and loading board...")
+                        st.session_state.online_pgn_bytes = pgn_bytes
+                        st.session_state.online_pgn_name = f"{platform}_{online_user}.pgn"
+                        st.session_state.last_selected_player = target_player
+                        st.session_state.cached_filtered_games = filtered_games
+                        st.session_state.cached_stats = stats
+                        st.session_state.cached_fen_map = fen_map_all
+                        st.session_state.cached_fen_map_white = fen_map_white
+                        st.session_state.cached_fen_map_black = fen_map_black
+                        st.session_state.cached_repertoire = repertoire_data
+                        st.session_state.cached_move_evaluations = move_evals
+                        st.session_state.cached_deep_profile = deep_profile
+                        st.session_state.cached_profile_lang = current_lang
+                        tracker.set_step_done("ready", "Sẵn sàng phân tích!" if current_lang == "vi" else "Ready to analyze!")
+
+                        st.session_state.active_nav_page = "Analyze"
+                        st.rerun()
 
     st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 

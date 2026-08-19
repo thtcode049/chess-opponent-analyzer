@@ -8,7 +8,7 @@ Tự động suy luận tên khai cuộc từ các nước đi nếu file PGN kh
 
 import io
 from pathlib import Path
-from typing import List, Dict, Any, Union, Tuple
+from typing import List, Dict, Any, Union, Tuple, Optional
 import chess.pgn
 
 # Bảng tra cứu suy luận Khai cuộc (Opening Heuristic Lookup) dựa trên các nước đi đầu tiên
@@ -79,17 +79,97 @@ def infer_opening_from_moves(moves: List[str]) -> Tuple[str, str]:
     return ("", "Unknown Opening")
 
 
+import re
+
+EVAL_REGEX = re.compile(r'\[%eval\s+([#+-]?\d+(?:\.\d+)?)\]', re.IGNORECASE)
+
+
+def _extract_node_eval(node) -> Optional[Dict[str, Any]]:
+    """Trích xuất điểm đánh giá Stockfish [%eval ...] từ PGN comment hoặc node.eval()."""
+    # 1. Thử hàm tích hợp của python-chess
+    try:
+        ev = node.eval()
+        if ev is not None:
+            w_score = ev.white()
+            if w_score.is_mate():
+                m = w_score.mate()
+                mate_val = 10.0 if (m is not None and m > 0) else -10.0
+                mate_cp = 1000 if (m is not None and m > 0) else -1000
+                return {
+                    "eval_white": mate_val,
+                    "cp": mate_cp,
+                    "is_mate": True,
+                    "mate": m
+                }
+            cp = w_score.score()
+            if cp is not None:
+                clamped_cp = max(-1000, min(1000, cp))
+                return {
+                    "eval_white": round(clamped_cp / 100.0, 2),
+                    "cp": clamped_cp,
+                    "is_mate": False,
+                    "mate": None
+                }
+    except Exception:
+        pass
+
+    # 2. Fallback regex bóc tách từ chuỗi comment
+    comment = getattr(node, "comment", "")
+    if comment:
+        match = EVAL_REGEX.search(comment)
+        if match:
+            val_str = match.group(1)
+            if val_str.startswith("#"):
+                try:
+                    m = int(val_str[1:])
+                    mate_val = 10.0 if m > 0 else -10.0
+                    mate_cp = 1000 if m > 0 else -1000
+                    return {
+                        "eval_white": mate_val,
+                        "cp": mate_cp,
+                        "is_mate": True,
+                        "mate": m
+                    }
+                except ValueError:
+                    pass
+            else:
+                try:
+                    ev_float = float(val_str)
+                    clamped_ev = max(-10.0, min(10.0, ev_float))
+                    return {
+                        "eval_white": round(clamped_ev, 2),
+                        "cp": int(round(clamped_ev * 100)),
+                        "is_mate": False,
+                        "mate": None
+                    }
+                except ValueError:
+                    pass
+    return None
+
+
 def parse_single_game(game: chess.pgn.Game) -> Dict[str, Any]:
     """
     Trích xuất các trường thông tin cơ bản từ một ván đấu chess.pgn.Game.
+    Bao gồm cả trích xuất điểm đánh giá Stockfish có sẵn (Lichess/ChessBase evals).
     """
     headers = game.headers
     board = game.board()
     moves = []
+    evals = []
+    has_evals = False
 
-    for move in game.mainline_moves():
-        moves.append(board.san(move))
-        board.push(move)
+    for node in game.mainline():
+        san_move = board.san(node.move)
+        moves.append(san_move)
+
+        node_eval = _extract_node_eval(node)
+        if node_eval is not None:
+            has_evals = True
+            evals.append(node_eval)
+        else:
+            evals.append(None)
+
+        board.push(node.move)
 
     raw_eco = headers.get("ECO", "").strip()
     raw_op = headers.get("Opening", "").strip()
@@ -116,6 +196,8 @@ def parse_single_game(game: chess.pgn.Game) -> Dict[str, Any]:
         "eco": eco,
         "opening": opening,
         "moves": moves,
+        "evals": evals,
+        "has_evals": has_evals,
         "ply_count": len(moves),
     }
 
@@ -138,11 +220,22 @@ def parse_pgn(
     parsed_games = []
 
     if isinstance(pgn_source, (str, Path)):
-        file_path = Path(pgn_source)
-        if not file_path.exists():
-            raise FileNotFoundError(f"File PGN không tồn tại: {file_path}")
-        with open(file_path, encoding="utf-8", errors="replace") as f:
-            parsed_games = _read_games_from_stream(f)
+        if isinstance(pgn_source, str) and ("[" in pgn_source or "1." in pgn_source or "\n" in pgn_source):
+            try:
+                file_path = Path(pgn_source)
+                if file_path.exists() and file_path.is_file():
+                    with open(file_path, encoding="utf-8", errors="replace") as f:
+                        return _read_games_from_stream(f)
+            except Exception:
+                pass
+            text_stream = io.StringIO(pgn_source)
+            parsed_games = _read_games_from_stream(text_stream)
+        else:
+            file_path = Path(pgn_source)
+            if not file_path.exists():
+                raise FileNotFoundError(f"File PGN không tồn tại: {file_path}")
+            with open(file_path, encoding="utf-8", errors="replace") as f:
+                parsed_games = _read_games_from_stream(f)
     elif isinstance(pgn_source, bytes):
         text_stream = io.StringIO(pgn_source.decode("utf-8", errors="replace"))
         parsed_games = _read_games_from_stream(text_stream)

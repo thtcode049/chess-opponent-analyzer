@@ -72,7 +72,7 @@ def fetch_lichess_games(username: str, max_games: int = 100, perf_types: Optiona
     if not clean_user:
         return None, "Tên tài khoản Lichess không được để trống."
 
-    url = f"https://lichess.org/api/games/user/{urllib.parse.quote(clean_user)}?max={max_games}&opening=true"
+    url = f"https://lichess.org/api/games/user/{urllib.parse.quote(clean_user)}?max={max_games}&opening=true&evals=true&clocks=false&literate=false"
     perf_param = _normalize_lichess_perf_types(perf_types)
     if perf_param:
         url += f"&perfType={urllib.parse.quote(perf_param)}"

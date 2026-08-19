@@ -75,6 +75,34 @@ def apply_global_styles(theme_mode: str = "light"):
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
         }
 
+        /* Animations for Stepper Progress */
+        @keyframes stepSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .step-spin {
+            animation: stepSpin 1s linear infinite !important;
+            display: inline-block !important;
+        }
+        @keyframes dotsBlink {
+            0% { opacity: 0.2; }
+            20% { opacity: 1; }
+            100% { opacity: 0.2; }
+        }
+        .dots-ellipsis span {
+            animation-name: dotsBlink;
+            animation-duration: 1.4s;
+            animation-iteration-count: infinite;
+            animation-fill-mode: both;
+            font-weight: 700;
+        }
+        .dots-ellipsis span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .dots-ellipsis span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
         /* Typography */
         h1, h2, h3 {
             color: var(--text-primary) !important;
@@ -454,5 +482,86 @@ def RenderDataTable(df: pd.DataFrame, lang: str):
         hide_index=True,
         use_container_width=True
     )
+
+
+class AnalysisProgressTracker:
+    """
+    Trình theo dõi tiến trình phân tích nhiều bước (Analysis Multi-step Progress Tracker)
+    Hiển thị giao diện trực quan:
+    - Bước hoàn thành: Dấu tích xanh ✅
+    - Bước đang chạy: Spinner xoay + Dấu chấm động lặp lại (...)
+    - Bước đang chờ: Vòng tròn xám ⚪
+    - Bước lỗi: Dấu gạch chéo đỏ ❌
+    """
+    def __init__(self, placeholder, steps: List[Dict[str, str]], title: str = "Tiến trình phân tích", lang: str = "vi"):
+        self.placeholder = placeholder
+        self.steps = steps
+        self.title = title
+        self.lang = lang
+        self.statuses = {s["id"]: {"state": "pending", "detail": ""} for s in steps}
+        self.render()
+
+    def set_step_running(self, step_id: str, detail: str = ""):
+        if step_id in self.statuses:
+            self.statuses[step_id]["state"] = "running"
+            self.statuses[step_id]["detail"] = detail
+            self.render()
+
+    def set_step_done(self, step_id: str, detail: str = ""):
+        if step_id in self.statuses:
+            self.statuses[step_id]["state"] = "done"
+            self.statuses[step_id]["detail"] = detail
+            self.render()
+
+    def set_step_error(self, step_id: str, detail: str = ""):
+        if step_id in self.statuses:
+            self.statuses[step_id]["state"] = "error"
+            self.statuses[step_id]["detail"] = detail
+            self.render()
+
+    def render(self):
+        items_html = []
+        for s in self.steps:
+            sid = s["id"]
+            title = s["title"]
+            info = self.statuses.get(sid, {"state": "pending", "detail": ""})
+            state = info["state"]
+            detail = info["detail"]
+
+            if state == "done":
+                icon_html = '<span style="color:#10B981; font-size:18px; margin-right:10px;">✅</span>'
+                title_style = 'font-weight:600; color:#0F172A;'
+                detail_html = f'<div style="font-size:12px; color:#059669; margin-left:28px; margin-top:2px;">{detail}</div>' if detail else ''
+            elif state == "running":
+                icon_html = '<span class="step-spin" style="display:inline-block; margin-right:10px; font-size:16px;">🔄</span>'
+                title_style = 'font-weight:700; color:#2563EB;'
+                running_text = f'{detail} ' if detail else ''
+                detail_html = f'<div style="font-size:12px; color:#2563EB; margin-left:28px; margin-top:2px;">{running_text}<span class="dots-ellipsis"><span>.</span><span>.</span><span>.</span></span></div>'
+            elif state == "error":
+                icon_html = '<span style="color:#EF4444; font-size:18px; margin-right:10px;">❌</span>'
+                title_style = 'font-weight:600; color:#EF4444;'
+                detail_html = f'<div style="font-size:12px; color:#DC2626; margin-left:28px; margin-top:2px;">{detail}</div>' if detail else ''
+            else:
+                icon_html = '<span style="color:#94A3B8; font-size:16px; margin-right:10px;">⚪</span>'
+                title_style = 'font-weight:500; color:#64748B;'
+                detail_html = ''
+
+            item_str = (
+                '<div style="padding:10px 14px; margin-bottom:8px; background:rgba(248, 250, 252, 0.9); border:1px solid #E2E8F0; border-radius:8px;">'
+                f'<div style="display:flex; align-items:center;">{icon_html}<span style="{title_style} font-size:14px;">{title}</span></div>'
+                f'{detail_html}'
+                '</div>'
+            )
+            items_html.append(item_str)
+
+        all_steps_html = "".join(items_html)
+        full_html = (
+            '<div style="background:#FFFFFF; border:1px solid #CBD5E1; border-radius:12px; padding:18px 20px; margin:16px 0; box-shadow:0 4px 12px rgba(0,0,0,0.06);">'
+            f'<div style="font-size:16px; font-weight:800; color:#0F172A; margin-bottom:14px; display:flex; align-items:center;"><span style="margin-right:8px;">⏳</span> {self.title}</div>'
+            f'{all_steps_html}'
+            '</div>'
+        )
+        self.placeholder.markdown(full_html, unsafe_allow_html=True)
+
 
 
