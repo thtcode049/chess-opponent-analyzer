@@ -358,15 +358,15 @@ def get_comprehensive_move_evaluations(
     games: List[Dict[str, Any]],
     engine: Optional[StockfishEngine] = None,
     max_workers: Optional[int] = None,
-    depth: int = 8,
-    max_stockfish_games: int = 20,
+    depth: int = 6,
+    max_stockfish_games: int = 10,
     progress_callback: Optional[Any] = None,
     existing_evaluations: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
     """
     API Phân tích Toàn diện thông minh (Hybrid Comprehensive Evaluator):
     1. Ưu tiên trích xuất tức thì (0 giây) từ các ván có sẵn [%eval] (Lichess/PGN evals) trên 100% dữ liệu.
-    2. Nếu không có eval sẵn, phân tích nhanh 20 ván mẫu ở Depth 8 bằng cụm Stockfish đa luồng song song.
+    2. Nếu không có eval sẵn, phân tích nhanh 10 ván mẫu ở Depth 6 bằng cụm Stockfish đa luồng song song.
     """
     if not games:
         return {
@@ -384,7 +384,19 @@ def get_comprehensive_move_evaluations(
     if embedded_res.get("available") and embedded_res.get("analyzed_games", 0) > 0:
         return embedded_res
 
-    # 2. Dự phòng: Chạy cụm Stockfish đa luồng song song trên 20 ván mẫu ban đầu
+    # Nếu max_stockfish_games <= 0 (ví dụ Lichess không yêu cầu phân tích thêm ván mẫu khi thiếu eval):
+    if max_stockfish_games <= 0:
+        return {
+            "available": False,
+            "source": "none",
+            "analyzed_games": 0,
+            "total_moves_analyzed": 0,
+            "overall_acpl": None,
+            "move_evaluations": [],
+            "game_summaries": []
+        }
+
+    # 2. Dự phòng: Chạy cụm Stockfish đa luồng song song trên 10 ván mẫu ban đầu
     stockfish_available = (engine and engine.is_available()) or StockfishEngine().is_available()
     if stockfish_available:
         return parallel_batch_analyze_games(
@@ -410,8 +422,8 @@ def get_comprehensive_move_evaluations(
 def batch_analyze_games(
     games: List[Dict[str, Any]],
     engine: StockfishEngine,
-    max_games: int = 20,
-    depth: int = 8
+    max_games: int = 10,
+    depth: int = 6
 ) -> Dict[str, Any]:
     """
     Hàm wrapper tương thích ngược (Backward compatible) trỏ về API toàn diện.

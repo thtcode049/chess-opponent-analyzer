@@ -8,7 +8,7 @@ tương tự như openingtree.com.
 import urllib.request
 import urllib.parse
 import json
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Dict, Any
 
 
 def _normalize_lichess_perf_types(perf_types: Optional[List[str]]) -> Optional[str]:
@@ -63,16 +63,21 @@ def _normalize_chesscom_time_classes(perf_types: Optional[List[str]]) -> Optiona
     return target_set if target_set else None
 
 
-def fetch_lichess_games(username: str, max_games: int = 100, perf_types: Optional[List[str]] = None) -> Tuple[Optional[bytes], Optional[str]]:
+def fetch_lichess_games(
+    username: str,
+    max_games: int = 100,
+    perf_types: Optional[List[str]] = None,
+    token: Optional[str] = None
+) -> Tuple[Optional[bytes], Optional[str]]:
     """
-    Tải PGN ván đấu từ Lichess API.
+    Tải PGN ván đấu từ Lichess API với đầy đủ thông tin (Opening, Evals, Clocks, Accuracy).
     Endpoint: https://lichess.org/api/games/user/{username}
     """
     clean_user = username.strip()
     if not clean_user:
         return None, "Tên tài khoản Lichess không được để trống."
 
-    url = f"https://lichess.org/api/games/user/{urllib.parse.quote(clean_user)}?max={max_games}&opening=true&evals=true&clocks=false&literate=false"
+    url = f"https://lichess.org/api/games/user/{urllib.parse.quote(clean_user)}?max={max_games}&opening=true&evals=true&clocks=true&accuracy=true"
     perf_param = _normalize_lichess_perf_types(perf_types)
     if perf_param:
         url += f"&perfType={urllib.parse.quote(perf_param)}"
@@ -81,15 +86,17 @@ def fetch_lichess_games(username: str, max_games: int = 100, perf_types: Optiona
         "Accept": "application/x-chess-pgn",
         "User-Agent": "ChessOpponentAnalyzer/1.0"
     }
+    if token and token.strip():
+        headers["Authorization"] = f"Bearer {token.strip()}"
 
     try:
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=12) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:
             if resp.status == 200:
-                pgn_text = resp.read()
-                if not pgn_text or len(pgn_text.strip()) == 0:
+                raw_bytes = resp.read()
+                if not raw_bytes or len(raw_bytes.strip()) == 0:
                     return None, f"Không tìm thấy ván đấu nào cho tài khoản Lichess '{clean_user}'."
-                return pgn_text, None
+                return raw_bytes, None
             else:
                 return None, f"Lichess API trả về mã lỗi HTTP {resp.status}."
     except urllib.error.HTTPError as e:
@@ -100,11 +107,15 @@ def fetch_lichess_games(username: str, max_games: int = 100, perf_types: Optiona
         return None, f"Không thể kết nối tới Lichess: {e}"
 
 
-def fetch_chesscom_games(username: str, max_games: int = 100, perf_types: Optional[List[str]] = None) -> Tuple[Optional[bytes], Optional[str]]:
+def fetch_chesscom_games(
+    username: str,
+    max_games: int = 100,
+    perf_types: Optional[List[str]] = None
+) -> Tuple[Optional[bytes], Optional[str]]:
     """
     Tải PGN ván đấu từ Chess.com API.
     1. Lấy danh sách Monthly Archives: https://api.chess.com/pub/player/{username}/games/archives
-    2. Tải PGN từ các lưu trữ gần nhất.
+    2. Duyệt tuần tự từ tháng gần nhất trở về trước để thu thập đủ số ván đấu yêu cầu.
     """
     clean_user = username.strip().lower()
     if not clean_user:
@@ -164,4 +175,3 @@ def fetch_chesscom_games(username: str, max_games: int = 100, perf_types: Option
         return None, f"Lỗi Chess.com API (HTTP {e.code}): {e.reason}"
     except Exception as e:
         return None, f"Không thể kết nối tới Chess.com: {e}"
-

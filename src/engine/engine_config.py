@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 # Cấu hình Mặc định cho Engine Analysis
-ENGINE_DEPTH: int = 8
+ENGINE_DEPTH: int = 6
 ENGINE_HASH_MB: int = 16
 ENGINE_THREADS: int = 1
 ENGINE_TIMEOUT_SEC: float = 2.0

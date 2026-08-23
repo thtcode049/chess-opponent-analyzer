@@ -15,6 +15,13 @@ from src.report_generator import generate_markdown_report
 from src.online_fetcher import fetch_lichess_games, fetch_chesscom_games
 from src.engine.stockfish_engine import StockfishEngine
 from src.engine.evaluator import batch_analyze_games, get_comprehensive_move_evaluations, parallel_batch_analyze_games
+from src.ai_assistant import (
+    build_opponent_ai_context,
+    call_gemini_api,
+    stream_gemini_response,
+    AVAILABLE_MODELS,
+    GEMINI_MODELS
+)
 from src.i18n import t
 from src.ui_components import (
     apply_global_styles,
@@ -120,6 +127,13 @@ if "cached_deep_profile" not in st.session_state:
 
 if "cached_profile_lang" not in st.session_state:
     st.session_state.cached_profile_lang = None
+
+# AI Assistant Session State
+if "ai_chat_history" not in st.session_state:
+    st.session_state.ai_chat_history = []
+
+if "pending_ai_prompt" not in st.session_state:
+    st.session_state.pending_ai_prompt = None
 
 # Pawn Structure Explorer Mode State
 if "selected_structure" not in st.session_state:
@@ -741,6 +755,7 @@ with st.sidebar:
         ("Analyze", t("nav_analyze_games", lang=current_lang), ":material/analytics:"),
         ("Profile", t("nav_player_profile", lang=current_lang), ":material/person:"),
         ("Prep", t("nav_match_prep", lang=current_lang), ":material/target:"),
+        ("AIAssistant", "Trợ lí AI", ":material/smart_toy:"),
     ]
 
     for p_id, p_name, p_icon in analyzer_pages:
@@ -834,7 +849,7 @@ with st.sidebar:
                     # Pre-compute comprehensive evaluations (embedded PGN evals or parallel Stockfish)
                     st.session_state.cached_move_evaluations = None
                     if filtered_games:
-                        comp_res = get_comprehensive_move_evaluations(filtered_games, depth=8, max_stockfish_games=20)
+                        comp_res = get_comprehensive_move_evaluations(filtered_games, depth=6, max_stockfish_games=10)
                         if comp_res.get("available"):
                             st.session_state.cached_move_evaluations = comp_res.get("move_evaluations", [])
 
@@ -1188,7 +1203,7 @@ elif active_page in ["Profile", "Performance"]:
 
         # Automatic Stockfish engine execution if evaluations are not yet cached
         if st.session_state.cached_move_evaluations is None and engine.is_available() and filtered_games:
-            batch_res = get_comprehensive_move_evaluations(filtered_games, depth=8, max_stockfish_games=20)
+            batch_res = get_comprehensive_move_evaluations(filtered_games, depth=6, max_stockfish_games=10)
             if batch_res.get("available"):
                 st.session_state.cached_move_evaluations = batch_res.get("move_evaluations", [])
                 st.session_state.cached_deep_profile = None
@@ -1220,7 +1235,7 @@ elif active_page in ["Profile", "Performance"]:
         with head_col2:
             with st.container(border=True):
                 if engine.is_available():
-                    st.success("🟢 Stockfish Active (Depth 8)", icon="🤖")
+                    st.success("🟢 Stockfish Active (Depth 6)", icon="🤖")
                     st.caption("Đã tự động phân tích thế cờ ở nền." if current_lang == "vi" else "Positions automatically analyzed in background.")
                 else:
                     st.warning("⚠️ Engine Unavailable", icon="🤖")
@@ -1432,7 +1447,7 @@ elif active_page in ["Profile", "Performance"]:
 
                         deep_eval_res = parallel_batch_analyze_games(
                             filtered_games,
-                            depth=8,
+                            depth=6,
                             max_games=total_filtered_games_count,
                             progress_callback=_on_prog,
                             existing_evaluations=st.session_state.cached_move_evaluations
@@ -1524,29 +1539,8 @@ elif active_page in ["Profile", "Performance"]:
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
-        # 7. CRITICAL POSITIONS FOR TRAINING
-        st.markdown(f"### 🎓 {t('critical_positions_title', lang=current_lang)}")
-        crit_pos = deep_profile.get("critical_positions", [])
-        if crit_pos:
-            cp_cols = st.columns(min(len(crit_pos), 3))
-            for idx, pos in enumerate(crit_pos[:3]):
-                with cp_cols[idx]:
-                    with st.container(border=True):
-                        st.markdown(f"**Critical Move #{pos['move_number']}: {pos['san']}**")
-                        st.caption(f"Eval: {pos['eval_before']} → {pos['eval_after']} (CPL {pos['cpl']})")
-                        st.code(pos['fen_before'], language=None)
-                        if st.button("🎯 Nạp thế cờ lên Bàn cờ Phân tích" if current_lang == "vi" else "🎯 Load Position onto Board", key=f"prof_study_pos_{idx}", use_container_width=True):
-                            load_fen_onto_board(pos['fen_before'])
-        else:
-            if not has_engine:
-                st.info(t("engine_pending_notice", lang=current_lang))
-            else:
-                st.info("Chưa phát hiện thế cờ sụt giảm điểm số lớn từ dữ liệu hiện tại." if current_lang == "vi" else "No critical evaluation drops detected in analyzed games.")
-
-        st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
-
-        # 8. Repertoire Tables
-        st.markdown("### 📚 Opening Repertoire Overview")
+        # 7. Repertoire Tables
+        st.markdown("### 📚 Danh mục Khai cuộc (Opening Repertoire)")
         c_white, c_black = st.columns(2)
         with c_white:
             with st.container(border=True):
@@ -1792,6 +1786,127 @@ elif active_page == "Prep":
 
 
 # ==============================================================================
+# VIEW: AI ASSISTANT PAGE (Trò chuyện trực tiếp & Chọn Model)
+# ==============================================================================
+elif active_page == "AIAssistant":
+    PageHeader("Trợ lí AI", "Trò chuyện trực tiếp và hỏi đáp chuyên sâu về đối thủ với AI Đại kiện tướng.")
+
+    if not active_bytes or not selected_player or not st.session_state.cached_stats:
+        def on_import_click():
+            st.session_state.active_nav_page = "Import"
+            st.rerun()
+
+        EmptyState(
+            title="Chưa có dữ liệu đối thủ",
+            description="Vui lòng nạp ván đấu của đối thủ từ PGN, Lichess hoặc Chess.com để bắt đầu trò chuyện với Trợ lí AI.",
+            icon="🤖",
+            cta_label="Nạp Dữ liệu Ngay",
+            cta_key="ai_empty_cta",
+            on_cta_click=on_import_click
+        )
+    else:
+        if "ai_chat_history" not in st.session_state:
+            st.session_state.ai_chat_history = []
+        if "pending_ai_prompt" not in st.session_state:
+            st.session_state.pending_ai_prompt = None
+
+        stats = st.session_state.cached_stats or {}
+        deep_profile = st.session_state.cached_deep_profile or {}
+        fen_w = st.session_state.cached_fen_map_white or {}
+        fen_b = st.session_state.cached_fen_map_black or {}
+
+        # 1. Top Bar: Opponent Info & Model Selector (Giống hệt ChatGPT / Gemini web)
+        st_col1, st_col2 = st.columns([3, 2])
+        with st_col1:
+            with st.container(border=True):
+                st.markdown(f"### 🤖 Trợ lí Phân tích Đối thủ: **{selected_player}**")
+                st.caption(f"Dữ liệu cơ sở: **{stats.get('total_games', 0)}** ván đấu • Score: **{stats.get('score_percentage', 0)}%** • Đã đồng bộ 100% Profile & Cây Khai cuộc")
+        with st_col2:
+            with st.container(border=True):
+                selected_model = st.selectbox(
+                    "Mô hình AI (Model)",
+                    options=GEMINI_MODELS,
+                    format_func=lambda m: AVAILABLE_MODELS.get(m, m),
+                    index=0,
+                    key="ai_chat_selected_model_dropdown"
+                )
+                st.caption("⚡ Sẵn sàng trò chuyện trực tiếp • Tốc độ cao • Tự động suy luận")
+
+        st.markdown("<div style='margin-bottom:12px;'></div>", unsafe_allow_html=True)
+
+        # 2. Quick Prompt Chips
+        st.markdown("##### 💡 Gợi ý câu hỏi phân tích nhanh:")
+        quick_prompts = [
+            "🎯 Khai cuộc sở trường và điểm yếu lớn nhất của đối thủ là gì?",
+            "♟️ Đối thủ xử lý cấu trúc Tốt nào tốt nhất và tệ nhất?",
+            "⏱️ So sánh độ chính xác ở Khai cuộc, Trung cuộc và Tàn cuộc?",
+            "🎭 Tóm tắt phong cách thi đấu và độ biến động chiến thuật?",
+            "👑 Xu hướng đổi Hậu và chuyển tàn cuộc của đối thủ ra sao?",
+            "⚔️ Khi đối thủ cầm Đen đối đầu 1.e4, họ thường phản ứng thế nào?",
+        ]
+
+        q_cols = st.columns(3)
+        for i, q_text in enumerate(quick_prompts):
+            with q_cols[i % 3]:
+                if st.button(q_text, key=f"quick_prompt_btn_{i}", use_container_width=True):
+                    st.session_state.pending_ai_prompt = q_text
+                    st.rerun()
+
+        st.markdown("<hr style='margin:16px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
+
+        # 3. Chat Messages History Container
+        chat_container = st.container()
+        with chat_container:
+            if not st.session_state.ai_chat_history:
+                st.info("👋 Chào bạn! Tôi là Trợ lí AI Phân tích Đối thủ. Bạn có thể trò chuyện trực tiếp, hỏi bất kỳ điều gì về chiến thuật, khai cuộc hay điểm yếu của đối thủ này. Hãy bấm vào các gợi ý ở trên hoặc gõ câu hỏi bên dưới để bắt đầu!")
+            else:
+                for msg in st.session_state.ai_chat_history:
+                    with st.chat_message(msg["role"], avatar="♟️" if msg["role"] == "user" else "🤖"):
+                        st.markdown(msg["content"])
+
+        # 4. Handle Pending Prompt from Quick Buttons or Chat Input
+        user_input = st.chat_input("Hỏi bất kỳ điều gì về đối thủ (ví dụ: đối thủ hay thua ở nước cờ nào khi cầm Đen?)...")
+        active_prompt = None
+
+        if st.session_state.get("pending_ai_prompt"):
+            active_prompt = st.session_state.pending_ai_prompt
+            st.session_state.pending_ai_prompt = None
+        elif user_input:
+            active_prompt = user_input
+
+        if active_prompt:
+            # Append user message
+            st.session_state.ai_chat_history.append({"role": "user", "content": active_prompt})
+            with chat_container:
+                with st.chat_message("user", avatar="♟️"):
+                    st.markdown(active_prompt)
+
+                with st.chat_message("assistant", avatar="🤖"):
+                    context_data = build_opponent_ai_context(
+                        deep_profile=deep_profile,
+                        stats=stats,
+                        fen_map_white=fen_w,
+                        fen_map_black=fen_b,
+                        selected_player=selected_player
+                    )
+                    stream_gen = stream_gemini_response(
+                        prompt=active_prompt,
+                        context=context_data,
+                        chat_history=st.session_state.ai_chat_history,
+                        model=selected_model,
+                        deep_profile=deep_profile,
+                        stats=stats,
+                        fen_map_white=fen_w,
+                        fen_map_black=fen_b,
+                        selected_player=selected_player
+                    )
+                    full_response = st.write_stream(stream_gen)
+                    st.session_state.ai_chat_history.append({"role": "assistant", "content": full_response})
+
+            st.rerun()
+
+
+# ==============================================================================
 # VIEW 07: IMPORT GAMES PAGE
 # ==============================================================================
 elif active_page == "Import":
@@ -1844,12 +1959,12 @@ elif active_page == "Import":
 
                     # Step 3: Engine
                     tracker.set_step_running("engine", "Đang đánh giá chất lượng nước đi..." if current_lang == "vi" else "Evaluating positions & pawn structures...")
-                    comp_res = get_comprehensive_move_evaluations(filtered_games, depth=8, max_stockfish_games=20)
+                    comp_res = get_comprehensive_move_evaluations(filtered_games, depth=6, max_stockfish_games=10)
                     move_evals = comp_res.get("move_evaluations", []) if comp_res.get("available") else None
                     if comp_res.get("source") == "embedded_pgn":
                         eval_msg = f"Đã trích xuất đánh giá chất lượng cao từ {comp_res.get('analyzed_games', 0)} ván đấu (0s)" if current_lang == "vi" else f"Extracted embedded evaluations from {comp_res.get('analyzed_games', 0)} games (0s)"
                     else:
-                        eval_msg = f"Đã phân tích đa luồng ({comp_res.get('analyzed_games', 0)} ván đấu)" if current_lang == "vi" else f"Parallel analyzed {comp_res.get('analyzed_games', 0)} games"
+                        eval_msg = f"Đã phân tích {comp_res.get('analyzed_games', 0)} ván đấu mẫu (Depth 6)" if current_lang == "vi" else f"Analyzed {comp_res.get('analyzed_games', 0)} sample games (Depth 6)"
 
                     deep_profile = generate_deep_opponent_profile(
                         filtered_games,
@@ -1949,13 +2064,23 @@ elif active_page == "Import":
                         tracker.set_step_done("tree", f"Đã tạo 3 cây khai cuộc (Tất cả: {len(fen_map_all)}, Trắng: {len(fen_map_white)}, Đen: {len(fen_map_black)} thế cờ)" if current_lang == "vi" else f"Built 3 opening trees (All, White, Black)")
 
                         # Step 4: Engine & Deep Profile
-                        tracker.set_step_running("engine", "Đang đánh giá chất lượng nước đi..." if current_lang == "vi" else "Evaluating positions & pawn structures...")
-                        comp_res = get_comprehensive_move_evaluations(filtered_games, depth=8, max_stockfish_games=20)
-                        move_evals = comp_res.get("move_evaluations", []) if comp_res.get("available") else None
-                        if comp_res.get("source") == "embedded_pgn":
-                            eval_msg = f"Đã trích xuất đánh giá chất lượng cao từ {comp_res.get('analyzed_games', 0)} ván đấu (0s)" if current_lang == "vi" else f"Extracted embedded evaluations from {comp_res.get('analyzed_games', 0)} games (0s)"
+                        tracker.set_step_running("engine", "Đang đánh giá chất lượng nước đi & cấu trúc..." if current_lang == "vi" else "Evaluating positions & styles...")
+                        if platform == "Lichess":
+                            # Lichess: Sử dụng dữ liệu đầy đủ từ Lichess, trích xuất evals có sẵn nếu có, không cần phân tích thêm ván đấu mẫu
+                            comp_res = get_comprehensive_move_evaluations(filtered_games, depth=6, max_stockfish_games=0)
+                            move_evals = comp_res.get("move_evaluations", []) if comp_res.get("available") else None
+                            if comp_res.get("source") == "embedded_pgn":
+                                eval_msg = f"Đã trích xuất đánh giá có sẵn từ {comp_res.get('analyzed_games', 0)} ván đấu Lichess" if current_lang == "vi" else f"Extracted embedded evaluations from {comp_res.get('analyzed_games', 0)} Lichess games"
+                            else:
+                                eval_msg = "Sử dụng dữ liệu đầy đủ từ Lichess" if current_lang == "vi" else "Using full data from Lichess"
                         else:
-                            eval_msg = f"Đã phân tích đa luồng ({comp_res.get('analyzed_games', 0)} ván đấu)" if current_lang == "vi" else f"Parallel analyzed {comp_res.get('analyzed_games', 0)} games"
+                            # Chess.com: Phân tích trước 10 ván đấu mẫu ở Depth 6
+                            comp_res = get_comprehensive_move_evaluations(filtered_games, depth=6, max_stockfish_games=10)
+                            move_evals = comp_res.get("move_evaluations", []) if comp_res.get("available") else None
+                            if comp_res.get("source") == "embedded_pgn":
+                                eval_msg = f"Đã trích xuất đánh giá có sẵn từ {comp_res.get('analyzed_games', 0)} ván đấu (0s)" if current_lang == "vi" else f"Extracted embedded evaluations from {comp_res.get('analyzed_games', 0)} games (0s)"
+                            else:
+                                eval_msg = f"Đã phân tích {comp_res.get('analyzed_games', 0)} ván đấu mẫu (Depth 6)" if current_lang == "vi" else f"Analyzed {comp_res.get('analyzed_games', 0)} sample games (Depth 6)"
 
                         deep_profile = generate_deep_opponent_profile(
                             filtered_games,
@@ -2016,32 +2141,15 @@ elif active_page == "Settings":
     PageHeader(t("nav_settings", lang=current_lang), "Cấu hình ứng dụng và tùy chọn hiển thị." if current_lang == "vi" else "App settings and display options.")
 
     with st.container(border=True):
-        st.markdown("#### Giao diện & Ngôn ngữ")
-        
-        col_lang, col_theme = st.columns(2)
-        with col_lang:
-            st.markdown(f"**{t('nav_language', lang=current_lang)}**")
-            new_lang = st.selectbox(
-                "Select Language",
-                options=["vi", "en"],
-                index=0 if current_lang == "vi" else 1,
-                format_func=lambda x: "🇻🇳 Tiếng Việt" if x == "vi" else "🇬🇧 English",
-                key="settings_page_lang_selector",
-                label_visibility="collapsed"
-            )
-            if new_lang != current_lang:
-                st.session_state.language = new_lang
-                st.rerun()
-
-        with col_theme:
-            st.markdown("**Chế độ Giao diện (Theme)**")
-            st.selectbox(
-                "Theme Mode",
-                options=["Light (Mặc định)"],
-                index=0,
-                key="settings_page_theme_selector",
-                label_visibility="collapsed"
-            )
+        st.markdown("#### Tùy chọn Giao diện")
+        st.caption("Chế độ hiển thị màu sắc và giao diện chuẩn.")
+        st.selectbox(
+            "Theme Mode",
+            options=["Light (Sáng - Mặc định)"],
+            index=0,
+            key="settings_page_theme_selector",
+            label_visibility="collapsed"
+        )
 
     st.markdown("<div style='margin-bottom:16px;'></div>", unsafe_allow_html=True)
 
@@ -2058,6 +2166,12 @@ elif active_page == "Settings":
             st.session_state.cached_stats = {}
             st.session_state.cached_repertoire = {}
             st.session_state.cached_filtered_games = []
+            st.session_state.chess_board.reset()
+            st.session_state.move_history = []
+            st.session_state.full_analysis_line = []
+            st.session_state.active_nav_page = "Import"
+            st.success("Đã xóa cache dữ liệu.")
+            st.rerun()
             st.session_state.chess_board.reset()
             st.session_state.move_history = []
             st.session_state.full_analysis_line = []

@@ -9,8 +9,10 @@ __pycache__/
 *$py.class
 .pytest_cache/
 
-# Streamlit config / state
+# Streamlit config / state / secrets
 .streamlit/secrets.toml
+.env
+.env.*
 
 # OS files
 .DS_Store
