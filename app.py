@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -13,6 +14,15 @@ from src.player_profile import analyze_opening_repertoire, generate_player_insig
 from src.match_prep import generate_match_preparation, generate_actionable_match_preparation
 from src.report_generator import generate_markdown_report
 from src.online_fetcher import fetch_lichess_games, fetch_chesscom_games
+from src.lichess_oauth import (
+    generate_pkce_pair,
+    build_lichess_auth_url,
+    exchange_code_for_token,
+    fetch_current_user_profile,
+    get_pkce_verifier_for_state,
+    DEFAULT_CLIENT_ID,
+    DEFAULT_REDIRECT_URI
+)
 from src.engine.stockfish_engine import StockfishEngine
 from src.engine.evaluator import batch_analyze_games, get_comprehensive_move_evaluations, parallel_batch_analyze_games
 from src.ai_assistant import (
@@ -95,6 +105,41 @@ if "online_pgn_bytes" not in st.session_state:
 
 if "online_pgn_name" not in st.session_state:
     st.session_state.online_pgn_name = ""
+
+# Lichess OAuth PKCE State & Callback
+if "lichess_api_token" not in st.session_state:
+    st.session_state.lichess_api_token = os.getenv("LICHESS_API_TOKEN", "")
+
+if "lichess_logged_user" not in st.session_state:
+    st.session_state.lichess_logged_user = ""
+
+if "lichess_pkce_verifier" not in st.session_state or "lichess_pkce_challenge" not in st.session_state:
+    _v, _c = generate_pkce_pair()
+    st.session_state.lichess_pkce_verifier = _v
+    st.session_state.lichess_pkce_challenge = _c
+
+# Tự động bắt Authorization Code từ Lichess OAuth redirect
+if "code" in st.query_params:
+    oauth_code = st.query_params.get("code")
+    oauth_state = st.query_params.get("state") or ""
+    verifier = get_pkce_verifier_for_state(oauth_state)
+    token_val, err_val = exchange_code_for_token(
+        code=oauth_code,
+        code_verifier=verifier,
+        client_id=DEFAULT_CLIENT_ID,
+        redirect_uri=DEFAULT_REDIRECT_URI
+    )
+    if token_val:
+        st.session_state.lichess_api_token = token_val
+        user_info, _ = fetch_current_user_profile(token_val)
+        if user_info and user_info.get("username"):
+            st.session_state.lichess_logged_user = user_info["username"]
+            st.session_state.import_page_user_input = user_info["username"]
+        st.session_state.active_nav_page = "Import"
+        st.toast(f"Đã liên kết Lichess: {st.session_state.get('lichess_logged_user', 'Thành công')}!", icon="⚡")
+    else:
+        st.error(f"Lỗi xác thực OAuth từ Lichess: {err_val}")
+    st.query_params.clear()
 
 # Memoization Cache trong Session State
 if "analysis_color_filter" not in st.session_state:
@@ -2022,25 +2067,81 @@ elif active_page == "Import":
     with col_on:
         with st.container(border=True):
             st.markdown("#### 🌐 Fetch từ Lichess / Chess.com")
-            platform = st.selectbox("Nền tảng cờ vua", options=["Lichess", "Chess.com"], key="import_page_platform_select")
-            online_user = st.text_input("Tên tài khoản người dùng", placeholder="Ví dụ: MagnusCarlsen hoặc Hikaru", key="import_page_user_input")
+            platform = st.selectbox("Nền tảng Online", options=["Lichess", "Chess.com"], key="import_page_platform_select")
+            online_user = st.text_input("Tên tài khoản", placeholder="Ví dụ: MagnusCarlsen hoặc Hikaru", key="import_page_user_input")
             max_games_input = st.number_input(
-                "Số lượng ván đấu cần tải (Tùy chọn)",
+                "Số lượng ván đấu",
                 min_value=1,
                 max_value=300,
                 value=None,
                 step=10,
-                placeholder="Mặc định: 50 ván (Tối đa 300)",
+                placeholder="Tối đa 300 ván",
                 key="import_page_max_games"
             )
             max_games = int(max_games_input) if max_games_input is not None else 50
-            selected_game_types = st.multiselect(
-                "Thể loại ván đấu (Tùy chọn)",
-                options=["Bullet", "Blitz", "Rapid", "Classical", "Daily / Correspondence"],
-                default=[],
-                help="Chọn một hoặc nhiều thể loại cần tải. Bỏ trống để tải tất cả các thể loại.",
-                key="import_page_game_types"
-            )
+
+            col_sub1, col_sub2 = st.columns(2)
+            with col_sub1:
+                selected_game_types = st.multiselect(
+                    "Thể loại",
+                    options=["Bullet", "Blitz", "Rapid", "Classical", "Daily / Correspondence"],
+                    default=[],
+                    help="Chọn một hoặc nhiều thể loại cần tải. Bỏ trống để tải tất cả các thể loại.",
+                    key="import_page_game_types"
+                )
+            with col_sub2:
+                rated_mode = st.selectbox(
+                    "Rated",
+                    options=["Tất cả (Rated & Casual)", "Chỉ ván tính điểm (Rated)", "Chỉ ván không tính điểm (Not Rated)"],
+                    index=0,
+                    key="import_page_rated_mode"
+                )
+                if rated_mode == "Chỉ ván tính điểm (Rated)":
+                    is_rated = True
+                elif rated_mode == "Chỉ ván không tính điểm (Not Rated)":
+                    is_rated = False
+                else:
+                    is_rated = None
+
+            # Tùy chọn tăng tốc tải Lichess qua OAuth 1-Click (Giống OpeningTree)
+            if platform == "Lichess":
+                if st.session_state.get("lichess_api_token"):
+                    logged_name = st.session_state.get("lichess_logged_user") or "Đã xác thực"
+                    st.markdown(
+                        f"""
+                        <div style='background:#F0FDF4; border:1px solid #BBF7D0; border-radius:8px; padding:10px 14px; margin-bottom:12px;'>
+                            <div style='font-size:13px; color:#166534; font-weight:500;'>
+                                🟢 <b>Đã đăng nhập Lichess:</b> <span style='font-weight:700;'>{logged_name}</span> (Tải siêu tốc ⚡)
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                    if st.button("Đăng xuất Lichess", key="import_lichess_logout_btn"):
+                        st.session_state.lichess_api_token = ""
+                        st.session_state.lichess_logged_user = ""
+                        st.rerun()
+                else:
+                    auth_url = build_lichess_auth_url(
+                        client_id=DEFAULT_CLIENT_ID,
+                        redirect_uri=DEFAULT_REDIRECT_URI
+                    )
+                    st.markdown(
+                        f"""
+                        <div style='background:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; padding:12px 14px; margin-bottom:12px;'>
+                            <div style='font-size:13px; font-weight:600; color:#1E293B; margin-bottom:4px; display:flex; align-items:center; gap:6px;'>
+                                <span>⚡</span> <span>Tăng tốc nạp ván đấu Lichess</span>
+                            </div>
+                            <div style='font-size:12px; color:#64748B; line-height:1.45; margin-bottom:10px;'>
+                                Lichess cho phép tải ván đấu <b>nhanh hơn gấp 3–5 lần</b> khi đăng nhập.
+                            </div>
+                            <a href='{auth_url}' target='_self' style='display:inline-block; background:#10B981; color:#ffffff; font-weight:600; font-size:13px; padding:8px 18px; border-radius:6px; text-decoration:none;'>
+                                🔒 LOGIN TO LICHESS
+                            </a>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
 
             if st.button("Tải ván đấu", type="primary", use_container_width=True, key="import_page_fetch_online_btn"):
                 if online_user.strip():
@@ -2061,9 +2162,10 @@ elif active_page == "Import":
                     # Step 1: Fetch
                     tracker.set_step_running("fetch", "Đang kết nối máy chủ...")
                     if platform == "Lichess":
-                        pgn_bytes, err = fetch_lichess_games(online_user, max_games, perf_types=selected_game_types)
+                        token_to_use = st.session_state.get("lichess_api_token", "").strip() or None
+                        pgn_bytes, err = fetch_lichess_games(online_user, max_games, perf_types=selected_game_types, rated=is_rated, token=token_to_use)
                     else:
-                        pgn_bytes, err = fetch_chesscom_games(online_user, max_games, perf_types=selected_game_types)
+                        pgn_bytes, err = fetch_chesscom_games(online_user, max_games, perf_types=selected_game_types, rated=is_rated)
 
                     if err:
                         tracker.set_step_error("fetch", f"Lỗi tải ván đấu: {err}")

@@ -122,5 +122,65 @@ def test_fetch_chesscom_parallel(monkeypatch):
     assert b"Blitz 1" in data or b"Blitz 2" in data
 
 
+def test_fetch_lichess_rated(monkeypatch):
+    from unittest.mock import MagicMock
+
+    captured_url = []
+
+    def mock_urlopen(req, timeout=15):
+        captured_url.append(req.full_url)
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.read.return_value = b'[Event "Rated Game"]\n1. e4 e5 1-0\n'
+        mock_resp.__enter__.return_value = mock_resp
+        return mock_resp
+
+    monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
+
+    data, err = fetch_lichess_games("test_user", max_games=10, rated=True)
+    assert err is None
+    assert "rated=true" in captured_url[0]
+
+    captured_url.clear()
+    data2, err2 = fetch_lichess_games("test_user", max_games=10, rated=False)
+    assert err2 is None
+    assert "rated=false" in captured_url[0]
+
+
+def test_fetch_chesscom_rated(monkeypatch):
+    import json
+    from unittest.mock import MagicMock
+
+    def mock_urlopen(req, timeout=10):
+        url = req.full_url
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.headers = {}
+        if "archives" in url:
+            mock_resp.read.return_value = json.dumps({
+                "archives": ["https://api.chess.com/pub/player/test/games/2026/08"]
+            }).encode('utf-8')
+        else:
+            mock_resp.read.return_value = json.dumps({
+                "games": [
+                    {"pgn": '[Event "Rated Game"]\n1. e4 e5', "time_class": "rapid", "rated": True},
+                    {"pgn": '[Event "Casual Game"]\n1. d4 d5', "time_class": "rapid", "rated": False}
+                ]
+            }).encode('utf-8')
+        mock_resp.__enter__.return_value = mock_resp
+        return mock_resp
+
+    monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
+
+    data_rated, _ = fetch_chesscom_games("test_player", max_games=5, rated=True)
+    assert b"Rated Game" in data_rated
+    assert b"Casual Game" not in data_rated
+
+    data_casual, _ = fetch_chesscom_games("test_player", max_games=5, rated=False)
+    assert b"Casual Game" in data_casual
+    assert b"Rated Game" not in data_casual
+
+
+
 
 

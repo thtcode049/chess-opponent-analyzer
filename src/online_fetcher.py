@@ -67,6 +67,7 @@ def fetch_lichess_games(
     username: str,
     max_games: int = 100,
     perf_types: Optional[List[str]] = None,
+    rated: Optional[bool] = None,
     token: Optional[str] = None
 ) -> Tuple[Optional[bytes], Optional[str]]:
     """
@@ -81,6 +82,8 @@ def fetch_lichess_games(
     perf_param = _normalize_lichess_perf_types(perf_types)
     if perf_param:
         url += f"&perfType={urllib.parse.quote(perf_param)}"
+    if rated is not None:
+        url += f"&rated={'true' if rated else 'false'}"
     
     headers = {
         "Accept": "application/x-chess-pgn",
@@ -110,7 +113,8 @@ def fetch_lichess_games(
 def fetch_chesscom_games(
     username: str,
     max_games: int = 100,
-    perf_types: Optional[List[str]] = None
+    perf_types: Optional[List[str]] = None,
+    rated: Optional[bool] = None
 ) -> Tuple[Optional[bytes], Optional[str]]:
     """
     Tải PGN ván đấu từ Chess.com API.
@@ -157,6 +161,10 @@ def fetch_chesscom_games(
                             if allowed_time_classes is not None:
                                 time_class = g.get("time_class", "").lower()
                                 if time_class not in allowed_time_classes:
+                                    continue
+                            if rated is not None:
+                                is_game_rated = g.get("rated", True)
+                                if is_game_rated != rated:
                                     continue
                             pgn_list.append(g["pgn"])
                             games_collected += 1
