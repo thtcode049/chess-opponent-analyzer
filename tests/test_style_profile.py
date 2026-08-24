@@ -164,26 +164,41 @@ def test_evidence_generation():
         "resilience_rate": 60.0,
         "has_engine_data": True
     }
-    evidence_vi = generate_style_evidence(raw_m, lang="vi")
+    evidence_vi = generate_style_evidence(raw_m)
     assert len(evidence_vi) >= 3
     assert any("thí quân" in ev for ev in evidence_vi)
-    assert any("Simplifier" in ev for ev in evidence_vi)
-
-    evidence_en = generate_style_evidence(raw_m, lang="en")
-    assert len(evidence_en) >= 3
-    assert any("sacrifice" in ev.lower() for ev in evidence_en)
-    assert any("simplifier" in ev.lower() for ev in evidence_en)
+    assert any("đổi quân" in ev for ev in evidence_vi)
 
 
 def test_classify_player_style_end_to_end():
     raw_m = extract_all_style_metrics([], {}, None, None)
-    profile = classify_player_style(raw_m, sample_size=5, lang="vi")
+    profile = classify_player_style(
+        raw_m,
+        sample_size=10,
+        lang="vi",
+        analyzed_games_count=3,
+        total_games_count=10
+    )
 
     assert "metrics" in profile
     assert "evidence" in profile
     assert "is_simplifier" in profile
     assert "sacrifice_rate" in profile
     assert "simplification_rate" in profile
+    assert profile["analyzed_games_count"] == 3
+    assert profile["total_games_count"] == 10
+    assert profile["is_sample_only"] is True
+    assert profile["confidence_level"] == "low"
+
+    full_profile = classify_player_style(
+        raw_m,
+        sample_size=10,
+        lang="vi",
+        analyzed_games_count=10,
+        total_games_count=10
+    )
+    assert full_profile["is_sample_only"] is False
+    assert full_profile["confidence_level"] == "high"
 
 
 def test_deep_opponent_profile_integration():
@@ -196,10 +211,12 @@ def test_deep_opponent_profile_integration():
         "opening": "King's Pawn Game"
     }]
     stats = {"white_score_percentage": 100.0, "black_score_percentage": 0.0}
-    deep_prof = generate_deep_opponent_profile(games, stats, move_evaluations=None, lang="vi")
+    deep_prof = generate_deep_opponent_profile(games, stats, move_evaluations=None)
 
     assert "style_profile" in deep_prof
     assert "metrics" in deep_prof["style_profile"]
     assert "evidence" in deep_prof["style_profile"]
     assert "sacrifice_rate" in deep_prof["style_profile"]["metrics"]
     assert "simplification_rate" in deep_prof["style_profile"]["metrics"]
+    assert "confidence_level" in deep_prof["style_profile"]
+    assert "analyzed_games_count" in deep_prof["style_profile"]

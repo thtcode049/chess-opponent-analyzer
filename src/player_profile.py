@@ -6,7 +6,6 @@ tự động (Rule-Based Insights) hỗ trợ người chơi nhận diện phong
 """
 
 from typing import List, Dict, Any, Optional
-from src.i18n import t
 from src.ui_components import get_icon_svg
 from src.utils import determine_game_outcome
 
@@ -192,8 +191,8 @@ def generate_player_insights(
             insights.append({
                 "type": "opening",
                 "icon": "♟️",
-                "title": t("ins_white_pref_title", lang=lang),
-                "text": t("ins_white_pref_text", lang=lang, move=top_w_move[0], pct=pct_w)
+                "title": "Khai cuộc Trắng yêu thích",
+                "text": f"Đối thủ chọn chơi nước đi 1.{top_w_move[0]} trong {pct_w}% số ván cầm Trắng."
             })
 
     # 2. Preferred Response to 1.e4 as Black
@@ -210,8 +209,8 @@ def generate_player_insights(
             insights.append({
                 "type": "opening",
                 "icon": "♟️",
-                "title": t("ins_black_resp_title", lang=lang),
-                "text": t("ins_black_resp_text", lang=lang, move=top_e4_resp[0], pct=pct_resp)
+                "title": "Đáp trả 1.e4 ưa chuộng",
+                "text": f"Khi đối phương đi 1.e4, kỳ thủ này thường đáp trả bằng 1...{top_e4_resp[0]} ({pct_resp}% số ván)."
             })
 
     # 3. Color Performance Bias
@@ -222,15 +221,15 @@ def generate_player_insights(
             insights.append({
                 "type": "stat",
                 "icon": "📊",
-                "title": t("ins_color_bias_title", lang=lang),
-                "text": t("ins_color_bias_white", lang=lang, w_score=w_score, b_score=b_score)
+                "title": "Chênh lệch hiệu suất màu quân",
+                "text": f"Đối thủ thi đấu vượt trội khi cầm Trắng ({w_score}%) so với khi cầm Đen ({b_score}%)."
             })
         elif b_score - w_score >= 10.0:
             insights.append({
                 "type": "stat",
                 "icon": "📊",
-                "title": t("ins_color_bias_title", lang=lang),
-                "text": t("ins_color_bias_black", lang=lang, w_score=w_score, b_score=b_score)
+                "title": "Chênh lệch hiệu suất màu quân",
+                "text": f"Đối thủ thi đấu vượt trội khi cầm Đen ({b_score}%) so với khi cầm Trắng ({w_score}%)."
             })
 
     # 4. Favorite Opening System
@@ -240,8 +239,8 @@ def generate_player_insights(
         insights.append({
             "type": "repertoire",
             "icon": "🌿",
-            "title": t("ins_fav_opening_title", lang=lang),
-            "text": t("ins_fav_opening_text", lang=lang, name=fav['name'], count=fav['games_count'], score=fav['score_pct'])
+            "title": "Khai cuộc chơi nhiều nhất",
+            "text": f"Hệ thống khai cuộc '{fav['name']}' xuất hiện nhiều nhất với {fav['games_count']} ván (Điểm số: {fav['score_pct']}%)."
         })
 
     # 5. Best Scoring Weapon
@@ -252,8 +251,8 @@ def generate_player_insights(
             insights.append({
                 "type": "repertoire",
                 "icon": "⚔️",
-                "title": t("ins_best_weapon_title", lang=lang),
-                "text": t("ins_best_weapon_text", lang=lang, name=best['name'], count=best['games_count'], score=best['score_pct'])
+                "title": "Vũ khí đạt điểm số cao nhất",
+                "text": f"Khai cuộc '{best['name']}' đem lại hiệu suất cao nhất: {best['score_pct']}% trong {best['games_count']} ván."
             })
 
     return insights
@@ -262,8 +261,7 @@ def generate_player_insights(
 def generate_deep_opponent_profile(
     filtered_games: List[Dict[str, Any]],
     stats: Dict[str, Any],
-    move_evaluations: Optional[List[Dict[str, Any]]] = None,
-    lang: str = "vi"
+    move_evaluations: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
     """
     Tạo cấu trúc dữ liệu Hồ sơ Phân tích Sâu của Đối thủ (Deep Opponent Profile).
@@ -278,12 +276,16 @@ def generate_deep_opponent_profile(
     from src.analysis.critical_positions import find_critical_positions
 
     baseline = stats.get("score_percentage", 50.0) if stats else 50.0
-    repertoire_data = analyze_opening_repertoire(filtered_games, baseline_score=baseline, lang=lang)
-    structures_data = analyze_structural_performance(filtered_games, move_evaluations=move_evaluations, baseline_score=baseline, lang=lang)
-    phases_data = analyze_phase_performance(filtered_games, move_evaluations=move_evaluations, lang=lang)
-    dynamics_data = analyze_game_dynamics(filtered_games, move_evaluations=move_evaluations, lang=lang)
-    simplification_data = analyze_simplification_performance(filtered_games, move_evaluations=move_evaluations, lang=lang)
+    repertoire_data = analyze_opening_repertoire(filtered_games, baseline_score=baseline)
+    structures_data = analyze_structural_performance(filtered_games, move_evaluations=move_evaluations, baseline_score=baseline)
+    phases_data = analyze_phase_performance(filtered_games, move_evaluations=move_evaluations)
+    dynamics_data = analyze_game_dynamics(filtered_games, move_evaluations=move_evaluations)
+    simplification_data = analyze_simplification_performance(filtered_games, move_evaluations=move_evaluations)
     
+    analyzed_indices = set(e["game_index"] for e in (move_evaluations or []) if "game_index" in e)
+    analyzed_games_count = len(analyzed_indices)
+    total_games_count = len(filtered_games)
+
     style_raw_metrics = extract_all_style_metrics(
         filtered_games,
         stats,
@@ -292,12 +294,13 @@ def generate_deep_opponent_profile(
     )
     style_profile = classify_player_style(
         style_raw_metrics,
-        sample_size=len(filtered_games),
-        lang=lang
+        sample_size=total_games_count,
+        analyzed_games_count=analyzed_games_count,
+        total_games_count=total_games_count
     )
     
     critical_positions = find_critical_positions(move_evaluations, max_positions=5)
-    rule_insights = generate_player_insights(filtered_games, stats, repertoire_data, {}, lang=lang)
+    rule_insights = generate_player_insights(filtered_games, stats, repertoire_data, {})
 
     # ACPL tổng thể từ các nước đi có Stockfish evaluation của player
     all_cpls = [e["cpl"] for e in (move_evaluations or []) if "cpl" in e]

@@ -99,41 +99,36 @@ def get_sample_confidence(games_count: int) -> str:
 
 def format_assessment_label(assessment: str, lang: str = "vi") -> Dict[str, str]:
     """
-    Trả về nhãn, màu sắc và icon hiển thị cho từng trạng thái assessment.
+    Trả về nhãn, màu sắc và icon hiển thị cho từng trạng thái assessment (Tiếng Việt).
     """
     labels = {
         ASSESSMENT_CONFIRMED_STRENGTH: {
-            "label_vi": "Điểm mạnh Đã xác thực",
-            "label_en": "Confirmed Strength",
-            "badge": "★ Confirmed Strength" if lang == "en" else "★ Điểm mạnh Xác thực",
+            "label": "Điểm mạnh Đã xác thực",
+            "badge": "★ Điểm mạnh Xác thực",
             "color": "#22C55E",
             "icon": "🟢"
         },
         ASSESSMENT_POTENTIAL_STRENGTH: {
-            "label_vi": "Điểm mạnh Tiềm năng (Mẫu nhỏ)",
-            "label_en": "Potential Strength (Low Sample)",
-            "badge": "▲ Potential Strength" if lang == "en" else "▲ Điểm mạnh Tiềm năng",
+            "label": "Điểm mạnh Tiềm năng (Mẫu nhỏ)",
+            "badge": "▲ Điểm mạnh Tiềm năng",
             "color": "#10B981",
             "icon": "🌱"
         },
         ASSESSMENT_CONFIRMED_WEAKNESS: {
-            "label_vi": "Điểm yếu Đã xác thực",
-            "label_en": "Confirmed Weakness",
-            "badge": "⚠️ Confirmed Weakness" if lang == "en" else "⚠️ Điểm yếu Xác thực",
+            "label": "Điểm yếu Đã xác thực",
+            "badge": "⚠️ Điểm yếu Xác thực",
             "color": "#EF4444",
             "icon": "🔴"
         },
         ASSESSMENT_POTENTIAL_WEAKNESS: {
-            "label_vi": "Điểm yếu Tiềm năng (Mẫu nhỏ)",
-            "label_en": "Potential Weakness (Low Sample)",
-            "badge": "▽ Potential Weakness" if lang == "en" else "▽ Điểm yếu Tiềm năng",
+            "label": "Điểm yếu Tiềm năng (Mẫu nhỏ)",
+            "badge": "▽ Điểm yếu Tiềm năng",
             "color": "#F59E0B",
             "icon": "🌾"
         },
         ASSESSMENT_NEUTRAL: {
-            "label_vi": "Hiệu suất Trung tính",
-            "label_en": "Neutral Performance",
-            "badge": "● Neutral" if lang == "en" else "● Trung tính",
+            "label": "Hiệu suất Trung tính",
+            "badge": "● Trung tính",
             "color": "#94A3B8",
             "icon": "⚪"
         }
@@ -141,7 +136,7 @@ def format_assessment_label(assessment: str, lang: str = "vi") -> Dict[str, str]
     info = labels.get(assessment, labels[ASSESSMENT_NEUTRAL])
     return {
         "assessment": assessment,
-        "label": info[f"label_{lang}" if lang in ["vi", "en"] else "label_en"],
+        "label": info["label"],
         "badge": info["badge"],
         "color": info["color"],
         "icon": info["icon"]

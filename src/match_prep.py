@@ -6,7 +6,6 @@ giúp người chơi chuẩn bị trước trận đấu đối đầu với m�
 """
 
 from typing import List, Dict, Any
-from src.i18n import t
 
 
 def analyze_opponent_responses(
@@ -92,17 +91,17 @@ def analyze_opponent_responses(
             tag_label = "Thế trận cân bằng"
 
         responses_list.append({
-            "first_move": selected_first_move,
-            "resp_move": resp_move,
-            "opening_name": data["opening_name"],
+            "response_move": resp_move,
             "games_count": g_count,
             "usage_pct": usage_pct,
-            "score_pct": score_pct,
             "wins": w,
             "draws": d,
             "losses": l,
-            "assessment": assessment,
-            "tag_label": tag_label
+            "score_pct": score_pct,
+            "win_pct": round((w / g_count) * 100, 1) if g_count > 0 else 0.0,
+            "draw_pct": round((d / g_count) * 100, 1) if g_count > 0 else 0.0,
+            "loss_pct": round((l / g_count) * 100, 1) if g_count > 0 else 0.0,
+            "primary_openings": data.get("opening_name", "")
         })
 
     responses_list.sort(key=lambda x: x["games_count"], reverse=True)
@@ -116,12 +115,10 @@ def analyze_opponent_responses(
 
 
 from src.analysis.statistical_confidence import (
-    rank_strongest_items,
     rank_weakest_items,
-    ASSESSMENT_CONFIRMED_STRENGTH,
-    ASSESSMENT_POTENTIAL_STRENGTH,
+    rank_strongest_items,
     ASSESSMENT_CONFIRMED_WEAKNESS,
-    ASSESSMENT_POTENTIAL_WEAKNESS
+    ASSESSMENT_POTENTIAL_WEAKNESS,
 )
 
 
@@ -131,12 +128,11 @@ def generate_match_preparation(
     repertoire_data: Dict[str, Any],
     fen_map: Dict[str, Any],
     user_color: str = "white",
-    lang: str = "vi",
     selected_player: str = "",
     chosen_move: str = ""
 ) -> Dict[str, Any]:
     """
-    Tạo kế hoạch chuẩn bị trận đấu chi tiết dựa trên dữ liệu lịch sử đấu của đối thủ (Đa ngôn ngữ).
+    Tạo kế hoạch chuẩn bị trận đấu chi tiết dựa trên dữ liệu lịch sử đấu của đối thủ.
     Tích hợp Bayesian Framework để chỉ tập trung vào các điểm yếu có độ tin cậy thống kê cao.
     """
     if not filtered_games:
@@ -145,7 +141,7 @@ def generate_match_preparation(
             "recommended_lines": [],
             "surprise_weapons": [],
             "opponent_responses": {"available_first_moves": [], "selected_first_move": "", "total_games_in_move": 0, "responses": []},
-            "gameplan_checklist": [t("no_games", lang=lang)]
+            "gameplan_checklist": ["Không đủ dữ liệu ván đấu để phân tích."]
         }
 
     all_openings = repertoire_data.get("all_openings", [])
@@ -176,7 +172,7 @@ def generate_match_preparation(
                 "assessment": assess,
                 "assessment_badge": op.get("assessment_badge", ""),
                 "loss_pct": l_pct,
-                "reason": t("weakness_reason", lang=lang, score=raw_score, loss=l_pct, count=g_count)
+                "reason": f"Điểm số thấp ({raw_score}%) và tỷ lệ thua {l_pct}% trong {g_count} ván."
             })
 
     # 2. Đề xuất phương án tác chiến theo Màu quân của Người dùng
@@ -195,16 +191,16 @@ def generate_match_preparation(
             for b_op in weak_black_ops[:3]:
                 priority = "High" if b_op.get("assessment") == ASSESSMENT_CONFIRMED_WEAKNESS or b_op.get("score_pct", 50.0) < 40.0 else "Medium"
                 recommended_lines.append({
-                    "title": t("rec_target_line_title", lang=lang, name=b_op['name']),
-                    "detail": t("rec_target_line_detail", lang=lang, score=b_op['score_pct']),
+                    "title": f"Tấn công vào {b_op['name']}",
+                    "detail": f"Đối thủ đạt hiệu suất kém ({b_op['score_pct']}%) ở biến cờ này khi cầm Đen.",
                     "priority": priority
                 })
         else:
             if black_rep:
                 most_played_b = max(black_rep, key=lambda x: x["games_count"])
                 recommended_lines.append({
-                    "title": t("rec_main_weapon_black_title", lang=lang, name=most_played_b['name']),
-                    "detail": t("rec_main_weapon_black_detail", lang=lang, count=most_played_b['games_count'], score=most_played_b['score_pct']),
+                    "title": f"Chuẩn bị đối đầu {most_played_b['name']}",
+                    "detail": f"Đây là vũ khí chính của đối thủ khi cầm Đen ({most_played_b['games_count']} ván, {most_played_b['score_pct']}% score).",
                     "priority": "Medium"
                 })
     else:
@@ -220,16 +216,16 @@ def generate_match_preparation(
             for w_op in weak_white_ops[:3]:
                 priority = "High" if w_op.get("assessment") == ASSESSMENT_CONFIRMED_WEAKNESS or w_op.get("score_pct", 50.0) < 40.0 else "Medium"
                 recommended_lines.append({
-                    "title": t("rec_white_weak_title", lang=lang, name=w_op['name']),
-                    "detail": t("rec_white_weak_detail", lang=lang, score=w_op['score_pct']),
+                    "title": f"Nhắm vào biến {w_op['name']}",
+                    "detail": f"Đối thủ thi đấu kém ({w_op['score_pct']}%) khi cầm Trắng ở biến này.",
                     "priority": priority
                 })
         else:
             if white_rep:
                 most_played_w = max(white_rep, key=lambda x: x["games_count"])
                 recommended_lines.append({
-                    "title": t("rec_white_main_title", lang=lang, name=most_played_w['name']),
-                    "detail": t("rec_white_main_detail", lang=lang, count=most_played_w['games_count'], score=most_played_w['score_pct']),
+                    "title": f"Phòng thủ trước {most_played_w['name']}",
+                    "detail": f"Khai cuộc xuất hiện nhiều nhất của đối thủ khi cầm Trắng ({most_played_w['games_count']} ván, {most_played_w['score_pct']}% score).",
                     "priority": "High"
                 })
 
@@ -244,7 +240,7 @@ def generate_match_preparation(
                     "fen": fen,
                     "games_count": node.games_count,
                     "losses": node.losses,
-                    "note": t("surprise_note", lang=lang, losses=node.losses, count=node.games_count)
+                    "note": f"Đối thủ từng thua {node.losses}/{node.games_count} ván khi thế cờ này xuất hiện."
                 })
                 if len(surprise_weapons) >= 3:
                     break
@@ -252,19 +248,19 @@ def generate_match_preparation(
     # 4. Actionable Checklist (Sử dụng đúng kỳ thủ đối thủ được chọn)
     target_opponent = selected_player if selected_player else "Opponent"
     checklist = [
-        t("chk_side", lang=lang, color=user_color.upper(), opponent=target_opponent),
-        t("chk_perf", lang=lang, score=stats.get('score_percentage', 0), w=stats.get('wins', 0), d=stats.get('draws', 0), l=stats.get('losses', 0)),
+        f"Bạn cầm quân {user_color.upper()} đối đầu với {target_opponent}.",
+        f"Hiệu suất tổng thể của đối thủ: {stats.get('score_percentage', 0)}% (Thắng: {stats.get('wins', 0)}, Hòa: {stats.get('draws', 0)}, Thua: {stats.get('losses', 0)}).",
     ]
 
     if recommended_lines:
-        checklist.append(t("chk_priority", lang=lang, title=recommended_lines[0]['title'], detail=recommended_lines[0]['detail']))
+        checklist.append(f"Mục tiêu ưu tiên: {recommended_lines[0]['title']} — {recommended_lines[0]['detail']}")
     
     if target_weaknesses:
-        checklist.append(t("chk_weakness", lang=lang, name=target_weaknesses[0]['name'], score=target_weaknesses[0]['score_pct']))
+        checklist.append(f"Khai thác điểm yếu: Đối thủ thi đấu kém ở {target_weaknesses[0]['name']} (Điểm số: {target_weaknesses[0]['score_pct']}%).")
     else:
-        checklist.append(t("chk_weakness_none", lang=lang))
+        checklist.append("Chưa phát hiện điểm yếu khai cuộc đáng kể từ đối thủ.")
 
-    checklist.append(t("chk_strategy", lang=lang))
+    checklist.append("Duy trì cấu trúc tốt vững chắc và tận dụng tối đa lợi thế thời gian.")
 
     return {
         "target_weaknesses": target_weaknesses[:5],
@@ -329,85 +325,55 @@ def generate_actionable_match_preparation(
     if weakest_phase and weakest_phase.get("phase") == "endgame":
         play_recs.append(
             "Đưa trận đấu về Cờ tàn (Endgame) khi vị trí thuận lợi vì đối thủ sụt giảm độ chính xác rõ rệt."
-            if lang == "vi" else
-            "Simplify into technical Endgame when position is favorable due to opponent's accuracy drop."
         )
     elif weakest_phase and weakest_phase.get("phase") == "middlegame":
         play_recs.append(
             "Duy trì sức ép phức tạp trong Trung cuộc để khai thác điểm yếu xử lý trung cuộc của đối thủ."
-            if lang == "vi" else
-            "Maintain complex middlegame pressure to exploit opponent's middlegame inaccuracy."
         )
     else:
         play_recs.append(
             "Thi đấu chắc chắn, phát triển quân hài hòa và tuân thủ nguyên tắc vị trí."
-            if lang == "vi" else
-            "Play solid positional chess and focus on harmonious piece development."
         )
 
     # Đề xuất bổ trợ từ Style Profile
     if primary_style_key == "tactical" and tactical_score >= 65.0:
-        off_res = simplification.get("queens_off", {})
-        if off_res.get("score_pct", 50.0) <= 45.0:
-            play_recs.append(
-                "Khóa chặt cấu trúc Tốt trung tâm và chủ động đổi Hậu sớm để triệt tiêu hỏa lực tấn công của đối thủ."
-                if lang == "vi" else
-                "Lock central pawn structures and look for early queen trades to neutralize opponent's attacking momentum."
-            )
-        else:
-            play_recs.append(
-                "Ưu tiên các phương án làm giảm độ biến động thế cờ (Low Volatility), tránh để đối thủ mở toang trung lộ."
-                if lang == "vi" else
-                "Prioritize variations that minimize tactical volatility and prevent central line openings."
-            )
+        play_recs.append(
+            "Ưu tiên các phương án làm giảm độ biến động thế cờ (Low Volatility), tránh để đối thủ mở toang trung lộ."
+        )
     elif primary_style_key == "positional" and positional_score >= 65.0:
         play_recs.append(
             "Chủ động phá vỡ cấu trúc Tốt và mở cột giao tranh, không đánh thụ động để tránh bị đối thủ bóp nghẹt không gian."
-            if lang == "vi" else
-            "Actively challenge pawn structures and open files to avoid being slowly out-maneuvered in passive positions."
         )
     elif primary_style_key == "solid" and solid_score >= 65.0:
         play_recs.append(
             "Duy trì sức ép kiên nhẫn, không vội vàng dồn toàn lực công phá mạo hiểm dễ dính bẫy phản công."
-            if lang == "vi" else
-            "Maintain steady, well-coordinated pressure without overextending into counterattack traps."
         )
 
     if throw_rate >= 25.0:
         play_recs.append(
             f"Duy trì kiên trì khi bị lép vế vì đối thủ có tỷ lệ quăng lợi thế cao ({throw_rate}% throw rate)."
-            if lang == "vi" else
-            f"Stay resilient when behind; opponent shows a high advantage throw rate ({throw_rate}%)."
         )
 
     # --- 2. TARGET Recommendations ---
     if target_struct:
         target_recs.append(
             f"Chủ động lái trận đấu về cấu trúc {target_struct['name']} (đối thủ chỉ đạt {target_struct['score_pct']}% score)."
-            if lang == "vi" else
-            f"Aim for {target_struct['name']} structure (opponent scores only {target_struct['score_pct']}%)."
         )
 
     if weakest_op:
         target_recs.append(
             f"Khai thác hệ thống {weakest_op['name']} (đối thủ đạt {weakest_op['score_pct']}% score)."
-            if lang == "vi" else
-            f"Target {weakest_op['name']} (opponent scores {weakest_op['score_pct']}%)."
         )
 
     # --- 3. AVOID Recommendations ---
     if strongest_op and strongest_op.get("score_pct", 0) >= 55.0:
         avoid_recs.append(
             f"Tránh đi vào biến chuẩn bị mạnh nhất của đối thủ: {strongest_op['name']} ({strongest_op['score_pct']}% score) trừ khi đã chuẩn bị kỹ."
-            if lang == "vi" else
-            f"Avoid opponent's strongest line: {strongest_op['name']} ({strongest_op['score_pct']}% score) unless specifically prepared."
         )
 
     if not avoid_recs:
         avoid_recs.append(
             "Tránh các phương án chiến thuật bẫy rủi ro cao chưa chuẩn bị kỹ."
-            if lang == "vi" else
-            "Avoid unprepared high-risk tactical lines."
         )
 
     return {

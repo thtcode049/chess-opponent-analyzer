@@ -83,7 +83,9 @@ def build_opponent_ai_context(
     stats: Optional[Dict[str, Any]],
     fen_map_white: Optional[Dict[str, Any]] = None,
     fen_map_black: Optional[Dict[str, Any]] = None,
-    selected_player: str = "Đối thủ"
+    selected_player: str = "Đối thủ",
+    analyzed_games_count: Optional[int] = None,
+    total_games_count: Optional[int] = None
 ) -> str:
     """
     Chuyển đổi toàn bộ dữ liệu thống kê khách quan từ Profile và Opening Tree thành
@@ -95,6 +97,14 @@ def build_opponent_ai_context(
     ctx_parts = []
     ctx_parts.append(f"# BÁO CÁO DỮ LIỆU THỰC NGHIỆM ĐỐI THỦ: {selected_player.upper()}")
     ctx_parts.append("*(Nguồn dữ liệu: 100% trích xuất từ phân tích toán học & Profile, không chứa suy diễn chủ quan)*\n")
+
+    if analyzed_games_count is not None and total_games_count is not None and total_games_count > analyzed_games_count:
+        ctx_parts.append(
+            f"⚠️ **CẢNH BÁO ĐỘ TIN CẬY DỮ LIỆU ĐÁNH GIÁ NƯỚC ĐI**: "
+            f"Hệ thống hiện mới chỉ phân tích mẫu **{analyzed_games_count}/{total_games_count} ván**. "
+            f"Khi phân tích về độ chính xác (Phase accuracy), các chỉ số phong cách hay điểm yếu chiến thuật, "
+            f"hãy giải thích dựa trên mẫu {analyzed_games_count} ván này và nhắc nhở người dùng có thể bấm 'Phân tích toàn bộ ván đấu' để có số liệu chuẩn xác 100%.\n"
+        )
 
     # 1. Thống kê cơ bản
     ctx_parts.append("## I. THỐNG KÊ TỔNG QUAN")
@@ -175,12 +185,5 @@ def build_opponent_ai_context(
             )
     else:
         ctx_parts.append("- Chưa phát hiện cấu trúc Tốt đặc trưng.")
-
-    # 7. Đơn giản hóa & Đổi Hậu
-    simp = deep_profile.get("simplification", {})
-    ctx_parts.append("\n## VII. THÓI QUEN ĐỔI QUÂN & ĐƠN GIẢN HÓA (SIMPLIFICATION)")
-    ctx_parts.append(f"- **Đổi Hậu**: Xuất hiện trong {simp.get('queen_trade_count', 0)} ván, Tỷ lệ thắng khi đổi Hậu: {simp.get('queen_trade_winrate', 0)}%")
-    if simp.get("recommendation"):
-        ctx_parts.append(f"- **Xu hướng thực tế**: {simp.get('recommendation')}")
 
     return "\n".join(ctx_parts)

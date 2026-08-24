@@ -10,7 +10,6 @@ import base64
 import streamlit as st
 import pandas as pd
 from typing import Dict, Any, List, Optional
-from src.i18n import t
 
 _ICONS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets", "icons"))
 
@@ -461,16 +460,16 @@ def PlaystyleMeter(label_left: str, label_right: str, pct: int, desc: str = ""):
     """, unsafe_allow_html=True)
 
 
-def RenderDataTable(df: pd.DataFrame, lang: str):
-    """Format và hiển thị Dataframe Repertoire chuẩn Tiếng Việt/English không hiện index."""
+def RenderDataTable(df: pd.DataFrame, lang: str = "vi"):
+    """Format và hiển thị Dataframe Repertoire chuẩn Tiếng Việt không hiện index."""
     col_map = {
-        "name": t("col_move", lang=lang) if lang == "en" else "Khai cuộc",
-        "games_count": t("col_games", lang=lang) if lang == "en" else "Số ván",
-        "usage_pct": t("col_usage", lang=lang) if lang == "en" else "Tần suất (%)",
-        "score_pct": t("col_score", lang=lang) if lang == "en" else "Điểm số (%)",
-        "wins": t("metric_wins", lang=lang) if lang == "en" else "Thắng",
-        "draws": t("metric_draws", lang=lang) if lang == "en" else "Hòa",
-        "losses": t("metric_losses", lang=lang) if lang == "en" else "Thua",
+        "name": "Khai cuộc",
+        "games_count": "Số ván",
+        "usage_pct": "Tần suất (%)",
+        "score_pct": "Điểm số (%)",
+        "wins": "Thắng",
+        "draws": "Hòa",
+        "losses": "Thua",
     }
     
     df_clean = df.rename(columns=col_map)

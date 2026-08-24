@@ -11,13 +11,11 @@ from typing import List, Dict, Any, Optional
 import statistics
 
 from src.analysis.confidence import format_confidence_label
-from src.i18n import t
 
 
 def analyze_game_dynamics(
     filtered_games: List[Dict[str, Any]],
-    move_evaluations: Optional[List[Dict[str, Any]]] = None,
-    lang: str = "vi"
+    move_evaluations: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
     """
     Thống kê Động lực ván đấu (Throw Rate, Resilience Rate, Volatility).
@@ -34,7 +32,7 @@ def analyze_game_dynamics(
             "eligible_deficit_games": 0,
             "volatility": 0.0,
             "volatility_label": "N/A",
-            "confidence": format_confidence_label(0, lang=lang)
+            "confidence": format_confidence_label(0)
         }
 
     # Phân nhóm move evaluations theo từng ván đấu (game_index)
@@ -90,13 +88,13 @@ def analyze_game_dynamics(
     volatility = round(statistics.stdev(all_deltas), 2) if len(all_deltas) > 1 else 0.0
 
     if volatility >= 1.5:
-        vol_label = t("volatility_high", lang=lang)
+        vol_label = "Cao (Nhiều biến động)"
     elif volatility >= 0.8:
-        vol_label = t("volatility_med", lang=lang)
+        vol_label = "Trung bình"
     else:
-        vol_label = t("volatility_low", lang=lang)
+        vol_label = "Thấp (Ổn định)"
 
-    conf = format_confidence_label(len(games_map), lang=lang)
+    conf = format_confidence_label(len(games_map))
 
     return {
         "available": True,

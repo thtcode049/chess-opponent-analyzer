@@ -85,11 +85,6 @@ def test_build_opponent_ai_context_valid():
                     "typical_move": "12"
                 }
             ]
-        },
-        "simplification": {
-            "queen_trade_count": 6,
-            "queen_trade_winrate": 33.3,
-            "recommendation": "Hạn chế đổi Hậu sớm"
         }
     }
 
@@ -100,6 +95,14 @@ def test_build_opponent_ai_context_valid():
     assert "Sicilian Defense" in ctx
     assert "91.2%" in ctx
     assert "78.0" in ctx
+
+    # Test sample warning in context
+    ctx_sample = build_opponent_ai_context(
+        deep_profile, stats, selected_player="Magnus",
+        analyzed_games_count=5, total_games_count=20
+    )
+    assert "CẢNH BÁO ĐỘ TIN CẬY DỮ LIỆU ĐÁNH GIÁ NƯỚC ĐI" in ctx_sample
+    assert "5/20 ván" in ctx_sample
 
 
 def test_local_expert_response():

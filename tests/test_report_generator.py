@@ -22,8 +22,8 @@ def test_generate_markdown_report():
         "Nepomniachtchi, Ian", stats, repertoire_data, insights, prep_data, user_color="white"
     )
     
-    assert "# CHESS OPPONENT ANALYSIS & MATCH PREPARATION REPORT" in report_md
+    assert "# BÁO CÁO PHÂN TÍCH ĐỐI THỦ & KẾ HOẠCH TÁC CHIẾN CỜ VUA" in report_md
     assert "Nepomniachtchi, Ian" in report_md
-    assert "## 1. Overall Performance Statistics" in report_md
-    assert "## 4. Match Preparation & Tactical Gameplan" in report_md
+    assert "## 1. Thống kê Hiệu suất Tổng quan" in report_md
+    assert "## 4. Kế hoạch Tác chiến & Chuẩn bị Trận đấu" in report_md
     assert len(report_md) > 500

@@ -187,20 +187,18 @@ def generate_local_expert_response(
         return "\n".join(lines)
 
     # =========================================================================
-    # 4. TRẢ LỜI VỀ ĐỔI HẬU & ĐƠN GIẢN HÓA (SIMPLIFICATION & QUEEN TRADES)
+    # 4. TRẢ LỜI VỀ THÓI QUEN CHUYỂN TÀN CUỘC SỚM (ENDGAME SIMPLIFICATION)
     # =========================================================================
-    if any(k in p for k in ["đổi hậu", "queen", "hậu", "đơn giản hóa", "simplification", "đổi quân", "tàn cuộc sớm"]):
-        lines = [f"### 👑 Thói quen Chuyển Tàn & Đơn giản hóa của **{selected_player}**\n"]
-        lines.append(f"- **Tỷ lệ chuyển tàn cuộc sớm**: **{raw_m.get('simplification_rate', 0.0)}%**")
+    if any(k in p for k in ["chuyển tàn", "tàn cuộc sớm", "simplifier", "đơn giản hóa", "tàn cuộc"]):
+        lines = [f"### 👑 Thói quen Chuyển Tàn cuộc của **{selected_player}**\n"]
+        lines.append(f"- **Tỷ lệ chuyển tàn cuộc sớm (Simplification Rate)**: **{raw_m.get('simplification_rate', 0.0)}%**")
         lines.append(f"- **Thời điểm vào tàn cuộc trung bình**: **Nước {raw_m.get('avg_endgame_move', 0.0)}**")
-        lines.append(f"- **Xác nhận Simplifier**: `{'Có' if style_prof.get('is_simplifier') else 'Không'}`")
-        if simp.get("recommendation"):
-            lines.append(f"- **Nhận định từ dữ liệu**: *{simp['recommendation']}*")
+        lines.append(f"- **Xác nhận phong cách Simplifier**: `{'Có (Chuyên gia tàn cuộc)' if style_prof.get('is_simplifier') else 'Không'}`")
 
         if style_prof.get("is_simplifier"):
-            lines.append("\n💡 **Khuyến nghị chiến thuật**: Đối thủ là **Simplifier** có xu hướng đổi quân sớm đưa về tàn cuộc cân bằng. Nếu muốn tạo áp lực, bạn nên tránh các cấu trúc đối xứng và giữ quân phức tạp ở trung cuộc.")
-        elif simp.get("queens_off", {}).get("score_pct", 50) < 45.0:
-            lines.append("\n💡 **Khuyến nghị chiến thuật**: Đối thủ đạt tỷ lệ thắng **dưới 45% khi đổi Hậu**. Bạn nên chủ động gạ đổi Hậu sớm để đưa về tàn cuộc có lợi.")
+            lines.append("\n💡 **Khuyến nghị chiến thuật**: Đối thủ là **Simplifier** có xu hướng chủ động đổi quân sớm đưa về tàn cuộc cân bằng để khai thác kỹ thuật tàn cuộc. Nếu muốn tạo áp lực, bạn nên tránh các thế cờ đối xứng và duy trì thế trận phức tạp ở trung cuộc.")
+        else:
+            lines.append("\n💡 **Khuyến nghị chiến thuật**: Đối thủ ít khi chủ động chuyển tàn sớm mà có xu hướng duy trì quân lực để giải quyết ván đấu ở trung cuộc.")
 
         return "\n".join(lines)
 

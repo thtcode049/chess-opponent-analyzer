@@ -94,15 +94,20 @@ def analyze_simplification_performance(
     recommendation = ""
     if off_res["games_count"] >= 3 and on_res["games_count"] >= 3:
         if off_res["score_pct"] < on_res["score_pct"] - 10.0:
-            recommendation = "Đối thủ thi đấu kém hơn rõ rệt sau khi Đổi Hậu. Nên chủ động đổi Hậu để đưa về cờ tàn." if lang == "vi" else "Opponent performs significantly worse after queen exchanges. Consider trading queens early."
+            recommendation = "Đối thủ thi đấu kém hơn rõ rệt sau khi Đổi Hậu. Nên chủ động đổi Hậu để đưa về cờ tàn."
         elif on_res["score_pct"] < off_res["score_pct"] - 10.0:
-            recommendation = "Đối thủ thi đấu rất tốt khi đã Đổi Hậu. Nên giữ Hậu trên bàn cờ để duy trì áp lực tấn công." if lang == "vi" else "Opponent performs better after queen trades. Keep queens on the board to maintain pressure."
+            recommendation = "Đối thủ thi đấu rất tốt khi đã Đổi Hậu. Nên giữ Hậu trên bàn cờ để duy trì áp lực tấn công."
 
-    conf = format_confidence_label(len(filtered_games), lang=lang)
+    conf = format_confidence_label(len(filtered_games))
 
     return {
         "queens_on": on_res,
         "queens_off": off_res,
+        "queen_trade_count": off_res["games_count"],
+        "queen_trade_winrate": off_res["score_pct"],
+        "queen_trade_score": off_res["score_pct"],
+        "queens_on_count": on_res["games_count"],
+        "queens_on_score": on_res["score_pct"],
         "recommendation": recommendation,
         "confidence": conf
     }

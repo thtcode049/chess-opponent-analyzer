@@ -5,11 +5,11 @@ Chức năng: Cung cấp giao diện Trang chủ (Landing Page) độc lập gi�
 Chess Opponent Analyzer với phong cách chuyên nghiệp, tối giản, chuẩn phần mềm phân tích dữ liệu cờ vua.
 """
 
-from src.i18n import t
+import streamlit as st
 from src.ui_components import get_icon_svg
 
 
-def render_landing_page(lang: str, on_start_analysis):
+def render_landing_page(on_start_analysis):
     """
     Render toàn bộ giao diện Trang chủ (Landing Page).
     """
@@ -210,15 +210,15 @@ def render_landing_page(lang: str, on_start_analysis):
     """, unsafe_allow_html=True)
 
     # 1. HEADER (Sticky Navigation Header)
-    st.markdown(f"""
+    st.markdown("""
     <div class="landing-header">
         <div class="landing-brand">
             <span style="font-size:22px;">♟</span> Chess Opponent Analyzer
         </div>
         <div class="landing-nav-links">
-            <a href="#sec-features">{t('nav_features', lang=lang)}</a>
-            <a href="#sec-pipeline">{t('sec_pipeline_title', lang=lang)}</a>
-            <a href="#sec-how">{t('nav_how_it_works', lang=lang)}</a>
+            <a href="#sec-features">Tính năng</a>
+            <a href="#sec-pipeline">Quy trình Xử lý Dữ liệu</a>
+            <a href="#sec-how">Cách thức Hoạt động</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -227,23 +227,23 @@ def render_landing_page(lang: str, on_start_analysis):
     col_hero_text, col_hero_mockup = st.columns([5, 6])
 
     with col_hero_text:
-        st.markdown(f"""
+        st.markdown("""
         <div style="padding-top:10px;">
-            <div class="hero-tagline">{t('landing_tagline', lang=lang)}</div>
-            <div class="hero-headline">{t('hero_headline', lang=lang)}</div>
-            <div class="hero-desc">{t('hero_desc', lang=lang)}</div>
+            <div class="hero-tagline">HỆ THỐNG PHÂN TÍCH ĐỐI THỦ CỜ VUA CHUYÊN SÂU</div>
+            <div class="hero-headline">Thấu hiểu điểm yếu đối thủ.<br>Làm chủ thế trận ngay từ khai cuộc.</div>
+            <div class="hero-desc">Biến hàng trăm ván đấu PGN thành cây khai cuộc trực quan, phát hiện thói quen chơi cờ và xây dựng kế hoạch tác chiến chính xác.</div>
         </div>
         """, unsafe_allow_html=True)
 
         b1, b2 = st.columns([5, 5])
         with b1:
-            if st.button(f"🎯 {t('btn_start_analysis', lang=lang)}", key="hero_start_analysis_btn", use_container_width=True):
+            if st.button("🎯 Bắt đầu Phân tích", key="hero_start_analysis_btn", use_container_width=True):
                 on_start_analysis()
         with b2:
-            st.markdown(f"""
+            st.markdown("""
             <a href="#sec-features" style="text-decoration:none;">
                 <div style="text-align:center; padding:6px 12px; border:1px solid #cbd5e1; border-radius:5px; font-weight:600; font-size:13px; color:#475569; background:#fff;">
-                    🔍 {t('btn_explore_features', lang=lang)}
+                    🔍 Khám phá Tính năng
                 </div>
             </a>
             """, unsafe_allow_html=True)
@@ -283,7 +283,7 @@ def render_landing_page(lang: str, on_start_analysis):
     st.markdown("<div style='margin-bottom:48px;'></div>", unsafe_allow_html=True)
 
     # 3. FEATURES SECTION ("Phân tích được những gì?")
-    st.markdown(f"<h3 id='sec-features' style='text-align:center; margin-bottom:24px;'>{t('sec_features_title', lang=lang)}</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 id='sec-features' style='text-align:center; margin-bottom:24px;'>Phân tích được những gì?</h3>", unsafe_allow_html=True)
 
     tree_icon = get_icon_svg("tree", size=24)
     stats_icon = get_icon_svg("stats", size=24)
@@ -295,39 +295,39 @@ def render_landing_page(lang: str, on_start_analysis):
         st.markdown(f"""
         <div class="landing-card">
             <div class="card-icon">{tree_icon}</div>
-            <div class="card-title">{t('feat_1_title', lang=lang)}</div>
-            <div class="card-desc">{t('feat_1_desc', lang=lang)}</div>
+            <div class="card-title">Cây Khai Cuộc Trực Quan</div>
+            <div class="card-desc">Khám phá mọi biến thể khai cuộc đối thủ từng chơi, kèm tỷ lệ thắng/hòa/thua và hiệu suất trên từng nước đi.</div>
         </div>
         """, unsafe_allow_html=True)
     with f2:
         st.markdown(f"""
         <div class="landing-card">
             <div class="card-icon">{stats_icon}</div>
-            <div class="card-title">{t('feat_2_title', lang=lang)}</div>
-            <div class="card-desc">{t('feat_2_desc', lang=lang)}</div>
+            <div class="card-title">Thống Kê Hiệu Suất Toàn Diện</div>
+            <div class="card-desc">Đo lường tỉ lệ thắng cầm Trắng/Đen, hiệu suất theo từng hệ thống khai cuộc và phát hiện biến cờ yếu nhất.</div>
         </div>
         """, unsafe_allow_html=True)
     with f3:
         st.markdown(f"""
         <div class="landing-card">
             <div class="card-icon">{profile_icon}</div>
-            <div class="card-title">{t('feat_3_title', lang=lang)}</div>
-            <div class="card-desc">{t('feat_3_desc', lang=lang)}</div>
+            <div class="card-title">Hồ Sơ Phong Cách & Thói Quen</div>
+            <div class="card-desc">Tự động nhận diện nước đi ưa thích, phản ứng quen thuộc trước 1.e4/1.d4 và xu hướng chiến thuật của đối thủ.</div>
         </div>
         """, unsafe_allow_html=True)
     with f4:
         st.markdown(f"""
         <div class="landing-card">
             <div class="card-icon">{prep_icon}</div>
-            <div class="card-title">{t('feat_4_title', lang=lang)}</div>
-            <div class="card-desc">{t('feat_4_desc', lang=lang)}</div>
+            <div class="card-title">Kế Hoạch Chuẩn Bị Trận Đấu</div>
+            <div class="card-desc">Gợi ý biến cờ nên chơi, điểm yếu cần khai thác và vũ khí bất ngờ để đạt lợi thế tối đa.</div>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown("<div style='margin-bottom:36px;'></div>", unsafe_allow_html=True)
 
     # 4. DATA TO INSIGHT PIPELINE SECTION ("From Games to Insights")
-    st.markdown(f"<h3 id='sec-pipeline' style='text-align:center; margin-bottom:16px;'>{t('sec_pipeline_title', lang=lang)}</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 id='sec-pipeline' style='text-align:center; margin-bottom:16px;'>Quy trình Xử lý Dữ liệu</h3>", unsafe_allow_html=True)
     st.markdown("""
     <div class="pipeline-flow">
         <div class="pipeline-step">PGN DATA</div>
@@ -345,13 +345,13 @@ def render_landing_page(lang: str, on_start_analysis):
     st.markdown("<div style='margin-bottom:36px;'></div>", unsafe_allow_html=True)
 
     # 5. EXAMPLE SECTION ("Từ dữ liệu đến quyết định")
-    st.markdown(f"<h3 style='text-align:center; margin-bottom:20px;'>{t('sec_example_title', lang=lang)}</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align:center; margin-bottom:20px;'>Từ Dữ Liệu Đến Quyết Định Chiến Thuật</h3>", unsafe_allow_html=True)
 
     ex1, ex2 = st.columns(2)
     with ex1:
-        st.markdown(f"""
+        st.markdown("""
         <div class="landing-card">
-            <div style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:8px;">{t('raw_data_title', lang=lang)}</div>
+            <div style="font-size:12px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:8px;">Dữ liệu thô PGN</div>
             <div style="font-size:24px; font-weight:800; color:#0f172a; margin-bottom:8px;">119 Games</div>
             <div style="font-size:14px; color:#475569; line-height:1.6;">
                 • 56 Black games<br>
@@ -363,14 +363,14 @@ def render_landing_page(lang: str, on_start_analysis):
         """, unsafe_allow_html=True)
 
     with ex2:
-        st.markdown(f"""
+        st.markdown("""
         <div class="landing-card" style="border-left:4px solid #4f46e5;">
-            <div style="font-size:12px; font-weight:700; color:#4f46e5; text-transform:uppercase; margin-bottom:8px;">{t('insights_gen_title', lang=lang)}</div>
+            <div style="font-size:12px; font-weight:700; color:#4f46e5; text-transform:uppercase; margin-bottom:8px;">Nhận định Tự động</div>
             <div style="font-size:14px; color:#1e293b; font-weight:600; margin-bottom:6px;">"Opponent frequently plays this opening."</div>
             <div style="font-size:13px; color:#475569; margin-bottom:4px;">Most common response: <b>1...c6 (Caro-Kann)</b></div>
             <div style="font-size:13px; color:#d97706; font-weight:700; margin-bottom:12px;">Score: 59.8%</div>
             
-            <div style="font-size:12px; font-weight:700; color:#059669; text-transform:uppercase; margin-bottom:4px;">{t('rec_prep_title', lang=lang)}</div>
+            <div style="font-size:12px; font-weight:700; color:#059669; text-transform:uppercase; margin-bottom:4px;">Kế hoạch Tác chiến</div>
             <div style="font-size:13px; color:#047857; background:#ecfdf5; padding:8px 12px; border-radius:6px;">
                 Guide game into 2.d4 d5 3.f3 (Fantasy Variation) where opponent score drops to 38%.
             </div>
@@ -380,52 +380,52 @@ def render_landing_page(lang: str, on_start_analysis):
     st.markdown("<div style='margin-bottom:36px;'></div>", unsafe_allow_html=True)
 
     # 6. HOW IT WORKS SECTION ("3 bước")
-    st.markdown(f"<h3 id='sec-how' style='text-align:center; margin-bottom:24px;'>{t('sec_how_title', lang=lang)}</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 id='sec-how' style='text-align:center; margin-bottom:24px;'>3 Bước Đơn Giản</h3>", unsafe_allow_html=True)
 
     h1, h2, h3 = st.columns(3)
     with h1:
-        st.markdown(f"""
+        st.markdown("""
         <div class="landing-card" style="text-align:center;">
             <div class="step-num">01</div>
-            <div class="card-title">{t('step_1_title', lang=lang)}</div>
-            <div class="card-desc">{t('step_1_desc', lang=lang)}</div>
+            <div class="card-title">Nạp Dữ Liệu</div>
+            <div class="card-desc">Tải lên file PGN hoặc nạp trực tiếp từ Lichess/Chess.com.</div>
         </div>
         """, unsafe_allow_html=True)
     with h2:
-        st.markdown(f"""
+        st.markdown("""
         <div class="landing-card" style="text-align:center;">
             <div class="step-num">02</div>
-            <div class="card-title">{t('step_2_title', lang=lang)}</div>
-            <div class="card-desc">{t('step_2_desc', lang=lang)}</div>
+            <div class="card-title">Phân Tích Đối Thủ</div>
+            <div class="card-desc">Xem cây khai cuộc, thống kê phong độ và hồ sơ nhận định tự động.</div>
         </div>
         """, unsafe_allow_html=True)
     with h3:
-        st.markdown(f"""
+        st.markdown("""
         <div class="landing-card" style="text-align:center;">
             <div class="step-num">03</div>
-            <div class="card-title">{t('step_3_title', lang=lang)}</div>
-            <div class="card-desc">{t('step_3_desc', lang=lang)}</div>
+            <div class="card-title">Chuẩn Bị Trận Đấu</div>
+            <div class="card-desc">Nhận kế hoạch tác chiến chi tiết và xuất báo cáo chuẩn bị.</div>
         </div>
         """, unsafe_allow_html=True)
 
     # 7. CTA SECTION
-    st.markdown(f"""
+    st.markdown("""
     <div class="cta-box">
-        <div class="cta-title">{t('sec_cta_title', lang=lang)}</div>
-        <div style="font-size:15px; color:#475569; margin-bottom:20px;">{t('sec_cta_desc', lang=lang)}</div>
+        <div class="cta-title">Sẵn sàng làm chủ trận đấu tiếp theo?</div>
+        <div style="font-size:15px; color:#475569; margin-bottom:20px;">Bắt đầu phân tích đối thủ ngay bây giờ hoàn toàn miễn phí.</div>
     </div>
     """, unsafe_allow_html=True)
 
     c_center1, c_center2, c_center3 = st.columns([3, 4, 3])
     with c_center2:
-        if st.button(f"🚀 {t('btn_start_analysis', lang=lang)} →", key="cta_start_analysis_btn", use_container_width=True):
+        if st.button("🚀 Bắt đầu Phân tích →", key="cta_start_analysis_btn", use_container_width=True):
             on_start_analysis()
 
     # 8. FOOTER
-    st.markdown(f"""
+    st.markdown("""
     <div class="landing-footer">
         <div>
-            <b>♟ Chess Opponent Analyzer</b> — {t('footer_desc', lang=lang)}
+            <b>♟ Chess Opponent Analyzer</b> — Nền tảng Phân tích & Chuẩn bị Trận đấu Cờ vua Chuyên sâu
         </div>
         <div>
             Built with Streamlit & python-chess

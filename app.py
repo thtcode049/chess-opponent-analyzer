@@ -22,7 +22,6 @@ from src.ai_assistant import (
     AVAILABLE_MODELS,
     GEMINI_MODELS
 )
-from src.i18n import t
 from src.ui_components import (
     apply_global_styles,
     AppFooter,
@@ -480,7 +479,7 @@ def load_pawn_structure_onto_board(structure_info: dict):
 
 
 @st.fragment
-def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
+def render_analysis_section(fen_map: dict, selected_player: str):
     all_player_games = st.session_state.get("cached_filtered_games", [])
     total_cnt = len(all_player_games)
     white_cnt = sum(1 for g in all_player_games if str(g.get("player_color", "")).lower() == "white")
@@ -509,7 +508,7 @@ def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
     lichess_url = f"https://lichess.org/analysis/standard/{fen_url}"
 
     with col_board:
-        st.caption(f"{t('opponent', lang=lang)}: **{selected_player}** | {t('view_side', lang=lang)}: **{st.session_state.board_orientation.capitalize()}**")
+        st.caption(f"Đối thủ: **{selected_player}** | Góc nhìn: **{st.session_state.board_orientation.capitalize()}**")
         
         board_event = render_interactive_board(
             fen=current_fen,
@@ -543,24 +542,24 @@ def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
         with c_ctrl:
             nav1, nav2, nav3, nav4, nav5 = st.columns([1, 1, 1, 1, 1])
             with nav1:
-                st.button("|<", on_click=reset_to_first, help=t("first_move_btn", lang=lang), use_container_width=True)
+                st.button("|<", on_click=reset_to_first, help="Nước đầu tiên", use_container_width=True)
             with nav2:
-                st.button("<", on_click=pop_move, help=t("prev_move_btn", lang=lang), use_container_width=True)
+                st.button("<", on_click=pop_move, help="Nước trước", use_container_width=True)
             with nav3:
-                st.button(">", on_click=step_next, help=t("next_move_btn", lang=lang), use_container_width=True)
+                st.button(">", on_click=step_next, help="Nước tiếp theo", use_container_width=True)
             with nav4:
-                st.button(">|", on_click=step_last, help=t("last_move_btn", lang=lang), use_container_width=True)
+                st.button(">|", on_click=step_last, help="Nước cuối cùng", use_container_width=True)
             with nav5:
-                st.button("", icon=":material/sync:", on_click=toggle_orientation, help=t("flip_board_btn", lang=lang), use_container_width=True)
+                st.button("", icon=":material/sync:", on_click=toggle_orientation, help="Xoay bàn cờ", use_container_width=True)
 
         st.link_button(
-            t("btn_lichess_analysis", lang=lang),
+            "🔍 Phân tích trên Lichess",
             url=lichess_url,
             help="Mở thế cờ hiện tại trên Lichess Analysis Board",
             use_container_width=True
         )
 
-        with st.expander(t("show_fen", lang=lang), expanded=False):
+        with st.expander("Hiển thị FEN", expanded=False):
             st.code(current_fen, language="text")
 
     # Right Column: Move History (top) + Color Filter + Opening Tree Continuations (bottom)
@@ -571,7 +570,7 @@ def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
         tree_icon = get_icon_svg("tree", size=18)
 
         with st.container(border=True):
-            st.markdown(f"<div style='font-size:13px; font-weight:700; margin-bottom:4px; color:#0F172A;'>{pin_icon} {t('move_history_title', lang)} ({len(full_line)} plies):</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size:13px; font-weight:700; margin-bottom:4px; color:#0F172A;'>{pin_icon} Lịch sử nước đi ({len(full_line)} plies):</div>", unsafe_allow_html=True)
             
             hist_event = render_move_history_component(
                 moves=full_line,
@@ -595,7 +594,7 @@ def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
         with flt_col1:
             is_all = current_filter == "all"
             if st.button(
-                f"🔄 {t('tree_filter_all', lang=lang, count=total_cnt)}",
+                f"🔄 Tất cả ({total_cnt} ván)",
                 key="btn_flt_all",
                 type="primary" if is_all else "secondary",
                 use_container_width=True
@@ -606,7 +605,7 @@ def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
         with flt_col2:
             is_white = current_filter == "white"
             if st.button(
-                f"⚪ {t('tree_filter_white', lang=lang, count=white_cnt)}",
+                f"⚪ Cầm Trắng ({white_cnt} ván)",
                 key="btn_flt_white",
                 type="primary" if is_white else "secondary",
                 use_container_width=True
@@ -618,7 +617,7 @@ def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
         with flt_col3:
             is_black = current_filter == "black"
             if st.button(
-                f"⚫ {t('tree_filter_black', lang=lang, count=black_cnt)}",
+                f"⚫ Cầm Đen ({black_cnt} ván)",
                 key="btn_flt_black",
                 type="primary" if is_black else "secondary",
                 use_container_width=True
@@ -633,30 +632,30 @@ def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
 
         with st.container(border=True):
             if current_filter == "white":
-                filter_suffix = f"<span style='font-size:12px; font-weight:600; color:#475569;'> (⚪ {t('white_repertoire', lang=lang)} - {white_cnt} ván)</span>"
+                filter_suffix = f"<span style='font-size:12px; font-weight:600; color:#475569;'> (⚪ Khai cuộc Trắng - {white_cnt} ván)</span>"
             elif current_filter == "black":
-                filter_suffix = f"<span style='font-size:12px; font-weight:600; color:#475569;'> (⚫ {t('black_repertoire', lang=lang)} - {black_cnt} ván)</span>"
+                filter_suffix = f"<span style='font-size:12px; font-weight:600; color:#475569;'> (⚫ Khai cuộc Đen - {black_cnt} ván)</span>"
             else:
                 filter_suffix = f"<span style='font-size:12px; font-weight:600; color:#475569;'> ({total_cnt} ván)</span>"
 
-            st.markdown(f"<div style='font-size:15px; font-weight:700; color:#0F172A; margin-bottom:8px;'>{tree_icon} {t('opening_tree_continuations', lang=lang)}{filter_suffix}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='font-size:15px; font-weight:700; color:#0F172A; margin-bottom:8px;'>{tree_icon} Các Biến Thể Khai Cuộc Tiếp Theo{filter_suffix}</div>", unsafe_allow_html=True)
 
             continuations = pos_details["continuations"]
 
             if not continuations:
-                st.info(t("no_next_moves", lang=lang))
+                st.info("Không có nước đi tiếp theo trong cơ sở dữ liệu ván đấu.")
             else:
                 h1, h2, h3, h4, h5 = st.columns([1.5, 1.0, 1.2, 3.8, 1.2])
                 with h1:
-                    st.markdown(f"<div class='continuation-header'>{t('col_move', lang=lang)}</div>", unsafe_allow_html=True)
+                    st.markdown("<div class='continuation-header'>Nước đi</div>", unsafe_allow_html=True)
                 with h2:
-                    st.markdown(f"<div class='continuation-header'>{t('col_games', lang=lang)}</div>", unsafe_allow_html=True)
+                    st.markdown("<div class='continuation-header'>Số ván</div>", unsafe_allow_html=True)
                 with h3:
-                    st.markdown(f"<div class='continuation-header'>{t('col_usage', lang=lang)}</div>", unsafe_allow_html=True)
+                    st.markdown("<div class='continuation-header'>Tần suất</div>", unsafe_allow_html=True)
                 with h4:
-                    st.markdown(f"<div class='continuation-header'>{t('col_results', lang=lang)}</div>", unsafe_allow_html=True)
+                    st.markdown("<div class='continuation-header'>Kết quả</div>", unsafe_allow_html=True)
                 with h5:
-                    st.markdown(f"<div class='continuation-header'>{t('col_score', lang=lang)}</div>", unsafe_allow_html=True)
+                    st.markdown("<div class='continuation-header'>Điểm số</div>", unsafe_allow_html=True)
 
                 for cont in continuations:
                     san = cont["san"]
@@ -685,7 +684,7 @@ def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
                         game_label = f"{w_name}{w_elo} {res} {b_name}{b_elo}"
 
                         with c_game:
-                            if st.button(game_label, icon=":material/visibility:", key=f"tree_game_{san}_{len(st.session_state.move_history)}", use_container_width=True, help=t("view_single_game_hint", lang=lang)):
+                            if st.button(game_label, icon=":material/visibility:", key=f"tree_game_{san}_{len(st.session_state.move_history)}", use_container_width=True, help="Xem ván đấu duy nhất này"):
                                 load_single_game_onto_board(sg)
 
                         with c_link:
@@ -710,11 +709,11 @@ def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
                         with c4:
                             stacked_bar_html = f"""
                             <div style="padding-top:4px;">
-                                <div title="Win: {w_pct}% | Draw: {d_pct}% | Loss: {l_pct}%" 
+                                <div title="Thắng: {w_pct}% | Hòa: {d_pct}% | Thua: {l_pct}%" 
                                      style="display:flex; height:12px; width:100%; border-radius:3px; overflow:hidden; background-color:rgba(148,163,184,0.2);">
-                                    <div style="width:{w_pct}%; background-color:{COLOR_WIN};" title="Win {w_pct}%"></div>
-                                    <div style="width:{d_pct}%; background-color:{COLOR_DRAW};" title="Draw {d_pct}%"></div>
-                                    <div style="width:{l_pct}%; background-color:{COLOR_LOSS};" title="Loss {l_pct}%"></div>
+                                    <div style="width:{w_pct}%; background-color:{COLOR_WIN};" title="Thắng {w_pct}%"></div>
+                                    <div style="width:{d_pct}%; background-color:{COLOR_DRAW};" title="Hòa {d_pct}%"></div>
+                                    <div style="width:{l_pct}%; background-color:{COLOR_LOSS};" title="Thua {l_pct}%"></div>
                                 </div>
                                 <div style="font-size:11px; opacity:0.8; margin-top:2px;">
                                     <span style="color:#22C55E; font-weight:600;">W {w_pct}%</span> · 
@@ -729,9 +728,6 @@ def render_analysis_section(fen_map: dict, selected_player: str, lang: str):
                             st.markdown(f"<div style='padding-top:4px; font-weight:700; color:{COLOR_PRIMARY}; font-size:13px;'>{score}%</div>", unsafe_allow_html=True)
 
 
-# Active Language
-current_lang = st.session_state.language
-
 # ==============================================================================
 # UNIFIED UNIFIED STICKY LEFT SIDEBAR
 # ==============================================================================
@@ -742,19 +738,19 @@ with st.sidebar:
         <span style="font-size: 24px; line-height: 1; color: #10B981; display: inline-block; margin-top: 2px;">♟</span>
         <div>
             <div style="font-size: 15px; font-weight: 800; line-height: 1.15; color: #1E293B;">Chess Opponent Analyzer</div>
-            <div style="font-size: 10px; color: #64748B; margin-top: 3px; line-height: 1.25; font-weight: 400;">Understand your opponent.<br>Prepare with confidence.</div>
+            <div style="font-size: 10px; color: #64748B; margin-top: 3px; line-height: 1.25; font-weight: 400;">Hiểu đối thủ. Khai thác dữ liệu.<br>Chuẩn bị tốt hơn.</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     # Navigation Group: ANALYZER
-    st.markdown(f"<div class='sidebar-nav-group'>{t('nav_group_analyzer', lang=current_lang)}</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sidebar-nav-group'>CÔNG CỤ PHÂN TÍCH</div>", unsafe_allow_html=True)
     
     analyzer_pages = [
-        ("Dashboard", t("nav_dashboard", lang=current_lang), ":material/dashboard:"),
-        ("Analyze", t("nav_analyze_games", lang=current_lang), ":material/analytics:"),
-        ("Profile", t("nav_player_profile", lang=current_lang), ":material/person:"),
-        ("Prep", t("nav_match_prep", lang=current_lang), ":material/target:"),
+        ("Dashboard", "Tổng quan", ":material/dashboard:"),
+        ("Analyze", "Phân tích Ván đấu", ":material/analytics:"),
+        ("Profile", "Hồ sơ & Phong độ", ":material/person:"),
+        ("Prep", "Kế hoạch Tác chiến", ":material/target:"),
         ("AIAssistant", "Trợ lí AI", ":material/smart_toy:"),
     ]
 
@@ -771,10 +767,10 @@ with st.sidebar:
             st.rerun()
 
     # Navigation Group: DATA
-    st.markdown(f"<div class='sidebar-nav-group'>{t('nav_group_data', lang=current_lang)}</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sidebar-nav-group'>DỮ LIỆU</div>", unsafe_allow_html=True)
     is_active_import = st.session_state.active_nav_page == "Import"
     if st.button(
-        t("nav_import_games", lang=current_lang),
+        "Nạp Ván đấu",
         icon=":material/cloud_upload:",
         key="side_nav_Import",
         use_container_width=True,
@@ -784,10 +780,10 @@ with st.sidebar:
         st.rerun()
 
     # Navigation Group: SETTINGS
-    st.markdown(f"<div class='sidebar-nav-group'>{t('nav_group_settings', lang=current_lang)}</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sidebar-nav-group'>HỆ THỐNG</div>", unsafe_allow_html=True)
     is_active_settings = st.session_state.active_nav_page == "Settings"
     if st.button(
-        t("nav_settings", lang=current_lang),
+        "Cài đặt",
         icon=":material/settings:",
         key="side_nav_Settings",
         use_container_width=True,
@@ -815,13 +811,13 @@ with st.sidebar:
                     else 0
                 )
 
-                st.markdown("<div style='font-size:11px; font-weight:800; color:#94A3B8; letter-spacing:0.8px; text-transform:uppercase;'>CURRENT OPPONENT</div>", unsafe_allow_html=True)
+                st.markdown("<div style='font-size:11px; font-weight:800; color:#94A3B8; letter-spacing:0.8px; text-transform:uppercase;'>KỲ THỦ ĐANG PHÂN TÍCH</div>", unsafe_allow_html=True)
                 
                 selected_player = st.selectbox(
-                    t("select_player", lang=current_lang),
+                    "Chọn kỳ thủ",
                     options=player_options,
                     index=default_index,
-                    help=t("select_player_help", lang=current_lang),
+                    help="Chọn kỳ thủ đối thủ để tập trung phân tích",
                     key="sidebar_global_player_select",
                     label_visibility="collapsed"
                 )
@@ -857,10 +853,8 @@ with st.sidebar:
                     st.session_state.cached_deep_profile = generate_deep_opponent_profile(
                         filtered_games,
                         stats,
-                        move_evaluations=st.session_state.cached_move_evaluations,
-                        lang=current_lang
+                        move_evaluations=st.session_state.cached_move_evaluations
                     )
-                    st.session_state.cached_profile_lang = current_lang
 
                 st.caption(f"📊 {len(st.session_state.cached_filtered_games)} ván đấu đã phân tích")
 
@@ -868,8 +862,7 @@ with st.sidebar:
                     c_prof = st.session_state.cached_deep_profile or {}
                     p_data = generate_actionable_match_preparation(
                         c_prof,
-                        user_color=st.session_state.user_match_color,
-                        lang=current_lang
+                        user_color=st.session_state.user_match_color
                     )
                     return generate_markdown_report(
                         selected_player,
@@ -881,7 +874,7 @@ with st.sidebar:
                     )
 
                 st.download_button(
-                    label=t("download_report_sidebar", lang=current_lang),
+                    label="📥 Xuất Báo Cáo Kế Hoạch (.md)",
                     data=get_sidebar_report_md(),
                     file_name=f"opponent_report_{selected_player.replace(' ', '_').replace(',', '')}.md",
                     mime="text/markdown",
@@ -917,7 +910,7 @@ if active_page != st.session_state.previous_nav_page:
 # VIEW 01: DASHBOARD PAGE
 # ==============================================================================
 if active_page == "Dashboard":
-    PageHeader(t("nav_dashboard", lang=current_lang), t("dash_header_subtitle", lang=current_lang))
+    PageHeader("Tổng quan", "Bảng điều khiển tổng quan hiệu suất và chỉ số trọng yếu của đối thủ")
 
     if not active_bytes or not selected_player or not st.session_state.cached_stats:
         def on_import_click():
@@ -925,10 +918,10 @@ if active_page == "Dashboard":
             st.rerun()
 
         EmptyState(
-            title=t('no_dataset_loaded', lang=current_lang),
-            description=t('sidebar_help_upload', lang=current_lang),
+            title="Chưa có dữ liệu ván đấu",
+            description="Vui lòng tải lên file PGN hoặc nạp từ Lichess/Chess.com qua tab 'Nạp Ván đấu'.",
             icon="♟️",
-            cta_label=t('cta_import_now', lang=current_lang),
+            cta_label="Nạp dữ liệu ngay",
             cta_key="dash_empty_cta",
             on_cta_click=on_import_click
         )
@@ -940,8 +933,8 @@ if active_page == "Dashboard":
         with st.container(border=True):
             st.markdown(f"""
             **CHESS OPPONENT ANALYTICS**  
-            ### {t('opponent', lang=current_lang)}: {selected_player}
-            {t('total_games_analyzed', lang=current_lang, count=stats['total_games'])}
+            ### Đối thủ: {selected_player}
+            Tổng số ván đã phân tích: **{stats['total_games']}**
             """) 
 
         st.markdown("<div style='margin-bottom:16px;'></div>", unsafe_allow_html=True)
@@ -949,20 +942,20 @@ if active_page == "Dashboard":
         # 2. 5 KPI CARDS
         k1, k2, k3, k4, k5 = st.columns(5)
         with k1:
-            st.metric(t("metric_games", lang=current_lang), stats["total_games"])
+            st.metric("Tổng ván", stats["total_games"])
         with k2:
-            st.metric(t("metric_score", lang=current_lang), f"{stats['score_percentage']}%")
+            st.metric("Điểm số", f"{stats['score_percentage']}%")
         with k3:
-            st.metric(t("metric_wins", lang=current_lang), stats["wins"], delta=f"{stats['win_rate']}%")
+            st.metric("Thắng", stats["wins"], delta=f"{stats['win_rate']}%")
         with k4:
-            st.metric(t("metric_draws", lang=current_lang), stats["draws"], delta=f"{stats['draw_rate']}%")
+            st.metric("Hòa", stats["draws"], delta=f"{stats['draw_rate']}%")
         with k5:
-            st.metric(t("metric_losses", lang=current_lang), stats["losses"], delta=f"{stats['loss_rate']}%", delta_color="inverse")
+            st.metric("Thua", stats["losses"], delta=f"{stats['loss_rate']}%", delta_color="inverse")
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
         # 3. KEY INSIGHTS (4 CARDS GRID)
-        st.markdown(f"### {t('key_insights_title', lang=current_lang)}")
+        st.markdown("### Nhận Định Chiến Thuật Nổi Bật")
         
         most_played = repertoire.get("most_played", [])
         best_scoring = repertoire.get("best_scoring", [])
@@ -977,17 +970,17 @@ if active_page == "Dashboard":
         weak_op = worst_scoring[0]['name'] if worst_scoring else "N/A"
         weak_desc = f"Score thấp nhất {worst_scoring[0]['score_pct']}% ({worst_scoring[0]['games_count']} ván)" if worst_scoring else "Chưa có dữ liệu"
 
-        prep_desc = "Sẵn sàng kế hoạch thi đấu" if current_lang == "vi" else "Ready for match strategy"
+        prep_desc = "Sẵn sàng kế hoạch thi đấu"
 
         ic1, ic2, ic3, ic4 = st.columns(4)
         with ic1:
-            InsightCard("🌿", t("fav_opening_card", lang=current_lang), f"<b>{fav_op}</b><br>{fav_desc}")
+            InsightCard("🌿", "Khai cuộc chơi nhiều nhất", f"<b>{fav_op}</b><br>{fav_desc}")
         with ic2:
-            InsightCard("⚔️", t("strongest_weapon_card", lang=current_lang), f"<b>{strong_op}</b><br>{strong_desc}")
+            InsightCard("⚔️", "Vũ khí mạnh nhất", f"<b>{strong_op}</b><br>{strong_desc}")
         with ic3:
-            InsightCard("📊", t("potential_weakness_card", lang=current_lang), f"<b>{weak_op}</b><br>{weak_desc}")
+            InsightCard("📊", "Điểm yếu tiềm tàng", f"<b>{weak_op}</b><br>{weak_desc}")
         with ic4:
-            InsightCard("🎯", t("prepare_match_card", lang=current_lang), f"<b>{t('nav_match_prep', lang=current_lang)}</b><br>{prep_desc}")
+            InsightCard("🎯", "Kế hoạch chuẩn bị", f"<b>Kế hoạch Tác chiến</b><br>{prep_desc}")
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
@@ -995,7 +988,7 @@ if active_page == "Dashboard":
         c_left, c_right = st.columns(2)
         with c_left:
             with st.container(border=True):
-                st.subheader('Tổng quan Khai cuộc' if current_lang == 'vi' else 'Opening Overview')
+                st.subheader('Tổng quan Khai cuộc')
                 if most_played:
                     op_names = [op['name'][:22] for op in most_played[:5]]
                     op_counts = [op['games_count'] for op in most_played[:5]]
@@ -1003,7 +996,7 @@ if active_page == "Dashboard":
                         x=op_counts,
                         y=op_names,
                         orientation='h',
-                        labels={'x': 'Số ván' if current_lang == 'vi' else 'Games', 'y': 'Khai cuộc' if current_lang == 'vi' else 'Opening'},
+                        labels={'x': 'Số ván', 'y': 'Khai cuộc'},
                         color_discrete_sequence=['#10B981']
                     )
                     fig_op.update_layout(
@@ -1016,15 +1009,15 @@ if active_page == "Dashboard":
                     )
                     st.plotly_chart(fig_op, use_container_width=True)
                 else:
-                    st.info("Chưa có thông tin khai cuộc." if current_lang == "vi" else "No opening data available.")
+                    st.info("Chưa có thông tin khai cuộc.")
 
         with c_right:
             with st.container(border=True):
-                st.subheader(t('color_perf_title', lang=current_lang))
+                st.subheader("Hiệu suất theo Màu quân")
                 fig_perf = go.Figure(data=[
-                    go.Bar(name='Wins' if current_lang == 'en' else 'Thắng', x=['White', 'Black'] if current_lang == 'en' else ['Trắng', 'Đen'], y=[stats['white_wins'], stats['black_wins']], marker_color=COLOR_WIN),
-                    go.Bar(name='Draws' if current_lang == 'en' else 'Hòa', x=['White', 'Black'] if current_lang == 'en' else ['Trắng', 'Đen'], y=[stats['white_draws'], stats['black_draws']], marker_color=COLOR_DRAW),
-                    go.Bar(name='Losses' if current_lang == 'en' else 'Thua', x=['White', 'Black'] if current_lang == 'en' else ['Trắng', 'Đen'], y=[stats['white_losses'], stats['black_losses']], marker_color=COLOR_LOSS)
+                    go.Bar(name='Thắng', x=['Trắng', 'Đen'], y=[stats['white_wins'], stats['black_wins']], marker_color=COLOR_WIN),
+                    go.Bar(name='Hòa', x=['Trắng', 'Đen'], y=[stats['white_draws'], stats['black_draws']], marker_color=COLOR_DRAW),
+                    go.Bar(name='Thua', x=['Trắng', 'Đen'], y=[stats['white_losses'], stats['black_losses']], marker_color=COLOR_LOSS)
                 ])
                 fig_perf.update_layout(
                     barmode='group',
@@ -1039,26 +1032,26 @@ if active_page == "Dashboard":
         st.markdown("<div style='margin-bottom:24px;'></div>", unsafe_allow_html=True)
 
         # 5. QUICK ACTIONS
-        st.markdown(f"### {t('quick_actions_header', lang=current_lang)}")
+        st.markdown("### Truy cập nhanh tính năng")
         qa1, qa2, qa3, qa4 = st.columns(4)
 
         with qa1:
-            if st.button(f"{t('nav_analyze_games', lang=current_lang)} →", use_container_width=True, key="qa_analyze"):
+            if st.button("Phân tích Ván đấu →", use_container_width=True, key="qa_analyze"):
                 st.session_state.active_nav_page = "Analyze"
                 st.rerun()
 
         with qa2:
-            if st.button(f"{t('nav_player_profile', lang=current_lang)} →", use_container_width=True, key="qa_profile"):
+            if st.button("Hồ sơ & Phong độ →", use_container_width=True, key="qa_profile"):
                 st.session_state.active_nav_page = "Profile"
                 st.rerun()
 
         with qa3:
-            if st.button(f"{t('nav_match_prep', lang=current_lang)} →", use_container_width=True, key="qa_prep"):
+            if st.button("Kế hoạch Tác chiến →", use_container_width=True, key="qa_prep"):
                 st.session_state.active_nav_page = "Prep"
                 st.rerun()
 
         with qa4:
-            if st.button(f"{t('nav_import_games', lang=current_lang)} →", use_container_width=True, key="qa_import"):
+            if st.button("Nạp Ván đấu →", use_container_width=True, key="qa_import"):
                 st.session_state.active_nav_page = "Import"
                 st.rerun()
 
@@ -1067,11 +1060,11 @@ if active_page == "Dashboard":
 # VIEW 02: ANALYZE GAMES PAGE
 # ==============================================================================
 elif active_page == "Analyze":
-    PageHeader(t("nav_analyze_games", lang=current_lang), t("workspace_header_subtitle", lang=current_lang))
+    PageHeader("Phân tích Ván đấu", "Khám phá cây khai cuộc trực quan và duyệt qua từng nước đi")
 
     if not active_bytes or not selected_player or not st.session_state.cached_fen_map:
-        st.info("Vui lòng nạp dữ liệu ván đấu để sử dụng bàn cờ phân tích." if current_lang == "vi" else "Please import game data to use the analysis board.")
-        if st.button(f"🚀 {t('cta_import_now', lang=current_lang)}", type="primary", use_container_width=True, key="an_empty_cta"):
+        st.info("Vui lòng nạp dữ liệu ván đấu để sử dụng bàn cờ phân tích.")
+        if st.button("🚀 Nạp dữ liệu ngay", type="primary", use_container_width=True, key="an_empty_cta"):
             st.session_state.active_nav_page = "Import"
             st.rerun()
     else:
@@ -1084,9 +1077,9 @@ elif active_page == "Analyze":
                 head_col1, head_col2 = st.columns([4.5, 1.5])
                 with head_col1:
                     st.markdown(f"### 🧩 STRUCTURE EXPLORER: **{struct_name}**")
-                    st.caption(f"Đang xem **{len(struct_games)}** ván đấu thực tế có cấu trúc Tốt này (Move 8–15)." if current_lang == "vi" else f"Exploring **{len(struct_games)}** actual games formed with this structure (Move 8–15).")
+                    st.caption(f"Đang xem **{len(struct_games)}** ván đấu thực tế có cấu trúc Tốt này (Move 8–15).")
                 with head_col2:
-                    if st.button("⬅️ " + ("Trở về Phân tích Thường" if current_lang == "vi" else "Back to Normal Analysis"), use_container_width=True, key="btn_exit_struct_explorer"):
+                    if st.button("⬅️ Trở về Phân tích Thường", use_container_width=True, key="btn_exit_struct_explorer"):
                         st.session_state.selected_structure = None
                         st.session_state.structure_games = []
                         st.session_state.selected_structure_game = None
@@ -1095,7 +1088,7 @@ elif active_page == "Analyze":
             st.markdown("<div style='margin-bottom:12px;'></div>", unsafe_allow_html=True)
 
         # Render Interactive Chessboard & Move History
-        render_analysis_section(st.session_state.cached_fen_map, selected_player, current_lang)
+        render_analysis_section(st.session_state.cached_fen_map, selected_player)
 
         # MODE B: STRUCTURE GAMES LIST PANEL
         if st.session_state.selected_structure is not None:
@@ -1104,17 +1097,17 @@ elif active_page == "Analyze":
             struct_games = st.session_state.structure_games or []
 
             with st.container(border=True):
-                st.markdown(f"### 📋 {('Danh sách ván đấu có cấu trúc' if current_lang == 'vi' else 'Games with')} **{struct_name}** ({len(struct_games)} {('ván' if current_lang == 'vi' else 'games')})")
+                st.markdown(f"### 📋 Danh sách ván đấu có cấu trúc **{struct_name}** ({len(struct_games)} ván)")
 
                 filter_opts = {
-                    "All": "Tất cả" if current_lang == "vi" else "All",
-                    "Wins": "Ván Thắng" if current_lang == "vi" else "Wins",
-                    "Draws": "Ván Hòa" if current_lang == "vi" else "Draws",
-                    "Losses": "Ván Thua" if current_lang == "vi" else "Losses",
+                    "All": "Tất cả",
+                    "Wins": "Ván Thắng",
+                    "Draws": "Ván Hòa",
+                    "Losses": "Ván Thua",
                 }
 
                 selected_filter = st.radio(
-                    "Lọc kết quả ván đấu:" if current_lang == "vi" else "Filter game results:",
+                    "Lọc kết quả ván đấu:",
                     options=list(filter_opts.keys()),
                     format_func=lambda x: filter_opts[x],
                     horizontal=True,
@@ -1134,13 +1127,13 @@ elif active_page == "Analyze":
                 st.markdown("<hr style='margin:8px 0 12px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
                 if not filtered_struct_games:
-                    st.info("Không có ván đấu nào khớp với bộ lọc." if current_lang == "vi" else "No games match the selected filter.")
+                    st.info("Không có ván đấu nào khớp với bộ lọc.")
                 else:
                     gh1, gh2, gh3, gh4 = st.columns([4, 3, 2, 2])
-                    gh1.markdown("**Trắng vs Đen**" if current_lang == "vi" else "**White vs Black**")
-                    gh2.markdown("**Khai cuộc / Kết quả**" if current_lang == "vi" else "**Opening / Result**")
-                    gh3.markdown("**Hình thành**" if current_lang == "vi" else "**Formed**")
-                    gh4.markdown("**Thao tác**" if current_lang == "vi" else "**Action**")
+                    gh1.markdown("**Trắng vs Đen**")
+                    gh2.markdown("**Khai cuộc / Kết quả**")
+                    gh3.markdown("**Hình thành**")
+                    gh4.markdown("**Thao tác**")
 
                     st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
@@ -1154,11 +1147,11 @@ elif active_page == "Analyze":
                         op_name = g_info.get("opening", "Unknown Opening")
 
                         if g_info.get("is_win"):
-                            res_badge = f"<span style='color:{COLOR_WIN}; font-weight:700;'>{res} (Thắng)</span>" if current_lang == "vi" else f"<span style='color:{COLOR_WIN}; font-weight:700;'>{res} (Win)</span>"
+                            res_badge = f"<span style='color:{COLOR_WIN}; font-weight:700;'>{res} (Thắng)</span>"
                         elif g_info.get("is_draw"):
-                            res_badge = f"<span style='color:{COLOR_DRAW}; font-weight:700;'>{res} (Hòa)</span>" if current_lang == "vi" else f"<span style='color:{COLOR_DRAW}; font-weight:700;'>{res} (Draw)</span>"
+                            res_badge = f"<span style='color:{COLOR_DRAW}; font-weight:700;'>{res} (Hòa)</span>"
                         elif g_info.get("is_loss"):
-                            res_badge = f"<span style='color:{COLOR_LOSS}; font-weight:700;'>{res} (Thua)</span>" if current_lang == "vi" else f"<span style='color:{COLOR_LOSS}; font-weight:700;'>{res} (Loss)</span>"
+                            res_badge = f"<span style='color:{COLOR_LOSS}; font-weight:700;'>{res} (Thua)</span>"
                         else:
                             res_badge = f"<span>{res}</span>"
 
@@ -1170,7 +1163,7 @@ elif active_page == "Analyze":
                             st.markdown(f"<div style='padding-top:4px;'>Move {form_move}</div>", unsafe_allow_html=True)
                         with gc4:
                             is_current = (st.session_state.selected_structure_game == g_idx)
-                            btn_label = "✅ Đang xem" if is_current and current_lang == "vi" else ("✅ Viewing" if is_current else ("👁️ Xem ván" if current_lang == "vi" else "👁️ View Game"))
+                            btn_label = "✅ Đang xem" if is_current else "👁️ Xem ván"
                             if st.button(
                                 btn_label,
                                 key=f"btn_view_struct_game_{idx}_{g_idx}",
@@ -1189,7 +1182,7 @@ elif active_page == "Analyze":
 # VIEW 03: PLAYER PROFILE & DEEP ANALYTICS PAGE
 # ==============================================================================
 elif active_page in ["Profile", "Performance"]:
-    PageHeader(t("nav_player_profile", lang=current_lang), t("profile_header_subtitle", lang=current_lang))
+    PageHeader("Hồ sơ & Phong độ", "Hồ sơ phong cách chơi, cấu trúc Tốt và phân tích độ chính xác theo từng giai đoạn của đối thủ")
 
     if not active_bytes or not selected_player or not st.session_state.cached_stats:
         st.info("Vui lòng nạp dữ liệu ván đấu để xem Hồ sơ & Phong độ đối thủ.")
@@ -1215,14 +1208,12 @@ elif active_page in ["Profile", "Performance"]:
             if structs_check and "games" not in structs_check[0]:
                 is_stale_profile = True
 
-        if st.session_state.cached_deep_profile is None or st.session_state.cached_profile_lang != current_lang or is_stale_profile:
+        if st.session_state.cached_deep_profile is None or is_stale_profile:
             st.session_state.cached_deep_profile = generate_deep_opponent_profile(
                 st.session_state.cached_filtered_games,
                 stats,
-                move_evaluations=st.session_state.cached_move_evaluations,
-                lang=current_lang
+                move_evaluations=st.session_state.cached_move_evaluations
             )
-            st.session_state.cached_profile_lang = current_lang
 
         deep_profile = st.session_state.cached_deep_profile
 
@@ -1231,24 +1222,24 @@ elif active_page in ["Profile", "Performance"]:
         with head_col1:
             with st.container(border=True):
                 st.markdown(f"### ♟ {selected_player}")
-                st.caption(f"Đã phân tích **{stats['total_games']}** ván đấu • Score tổng thể: **{stats['score_percentage']}%**" if current_lang == "vi" else f"Analyzed **{stats['total_games']}** games • Overall Score: **{stats['score_percentage']}%**")
+                st.caption(f"Đã phân tích **{stats['total_games']}** ván đấu • Score tổng thể: **{stats['score_percentage']}%**")
         with head_col2:
             with st.container(border=True):
                 if engine.is_available():
                     st.success("🟢 Stockfish Active (Depth 6)", icon="🤖")
-                    st.caption("Đã tự động phân tích thế cờ ở nền." if current_lang == "vi" else "Positions automatically analyzed in background.")
+                    st.caption("Đã tự động phân tích thế cờ ở nền.")
                 else:
                     st.warning("⚠️ Engine Unavailable", icon="🤖")
-                    st.caption("Chi tiết thống kê cơ bản vẫn hiển thị đầy đủ." if current_lang == "vi" else "Basic statistics display fully.")
+                    st.caption("Chi tiết thống kê cơ bản vẫn hiển thị đầy đủ.")
 
         st.markdown("<div style='margin-bottom:16px;'></div>", unsafe_allow_html=True)
 
         # 2. Performance 4 KPI Metrics
         pm1, pm2, pm3, pm4 = st.columns(4)
-        pm1.metric("Win Rate", f"{stats['win_rate']}%", f"{stats['wins']} Wins")
-        pm2.metric("Draw Rate", f"{stats['draw_rate']}%", f"{stats['draws']} Draws")
-        pm3.metric("Loss Rate", f"{stats['loss_rate']}%", f"{stats['losses']} Losses", delta_color="inverse")
-        pm4.metric("Overall Score", f"{stats['score_percentage']}%", f"{stats['total_games']} Total Games")
+        pm1.metric("Tỷ lệ Thắng", f"{stats['win_rate']}%", f"{stats['wins']} Thắng")
+        pm2.metric("Tỷ lệ Hòa", f"{stats['draw_rate']}%", f"{stats['draws']} Hòa")
+        pm3.metric("Tỷ lệ Thua", f"{stats['loss_rate']}%", f"{stats['losses']} Thua", delta_color="inverse")
+        pm4.metric("Điểm số Tổng thể", f"{stats['score_percentage']}%", f"{stats['total_games']} Tổng số ván")
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
@@ -1256,11 +1247,11 @@ elif active_page in ["Profile", "Performance"]:
         col_left, col_right = st.columns(2)
         with col_left:
             with st.container(border=True):
-                st.markdown("##### Performance theo Màu quân" if current_lang == "vi" else "##### Performance by Color")
+                st.markdown("##### Performance theo Màu quân")
                 colors_fig = go.Figure(data=[
-                    go.Bar(name='Wins', x=['White', 'Black'], y=[stats['white_wins'], stats['black_wins']], marker_color=COLOR_WIN),
-                    go.Bar(name='Draws', x=['White', 'Black'], y=[stats['white_draws'], stats['black_draws']], marker_color=COLOR_DRAW),
-                    go.Bar(name='Losses', x=['White', 'Black'], y=[stats['white_losses'], stats['black_losses']], marker_color=COLOR_LOSS)
+                    go.Bar(name='Thắng', x=['Trắng', 'Đen'], y=[stats['white_wins'], stats['black_wins']], marker_color=COLOR_WIN),
+                    go.Bar(name='Hòa', x=['Trắng', 'Đen'], y=[stats['white_draws'], stats['black_draws']], marker_color=COLOR_DRAW),
+                    go.Bar(name='Thua', x=['Trắng', 'Đen'], y=[stats['white_losses'], stats['black_losses']], marker_color=COLOR_LOSS)
                 ])
                 colors_fig.update_layout(
                     barmode='group',
@@ -1274,9 +1265,9 @@ elif active_page in ["Profile", "Performance"]:
 
         with col_right:
             with st.container(border=True):
-                st.markdown("##### Tỷ lệ Kết quả Ván đấu" if current_lang == "vi" else "##### Game Results Distribution")
+                st.markdown("##### Tỷ lệ Kết quả Ván đấu")
                 donut_fig = go.Figure(data=[go.Pie(
-                    labels=['Wins', 'Draws', 'Losses'],
+                    labels=['Thắng', 'Hòa', 'Thua'],
                     values=[stats['wins'], stats['draws'], stats['losses']],
                     hole=.4,
                     marker_colors=[COLOR_WIN, COLOR_DRAW, COLOR_LOSS],
@@ -1292,17 +1283,17 @@ elif active_page in ["Profile", "Performance"]:
                 st.plotly_chart(donut_fig, use_container_width=True)
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
-        st.markdown(f"### 🧩 {t('structural_performance_title', lang=current_lang)}")
+        st.markdown("### 🧩 Hiệu Suất Theo Cấu Trúc Tốt (Pawn Structure Performance)")
         struct_list = deep_profile.get("structures", {}).get("structures", [])
         if struct_list:
             with st.container(border=True):
                 sh1, sh2, sh3, sh4, sh5, sh6 = st.columns([3.6, 1.0, 1.8, 1.4, 2.4, 1.8])
-                sh1.markdown("**Cấu trúc Tốt**" if current_lang == "vi" else "**Pawn Structure**")
-                sh2.markdown("**Số ván**" if current_lang == "vi" else "**Games**")
+                sh1.markdown("**Cấu trúc Tốt**")
+                sh2.markdown("**Số ván**")
                 sh3.markdown("**W / D / L**")
                 sh4.markdown("**Raw %**")
-                sh5.markdown("**Bayes Adj (Độ tin cậy)**" if current_lang == "vi" else "**Bayes Adj (Confidence)**")
-                sh6.markdown("**Thao tác**" if current_lang == "vi" else "**Action**")
+                sh5.markdown("**Bayes Adj (Độ tin cậy)**")
+                sh6.markdown("**Thao tác**")
 
                 st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
@@ -1321,7 +1312,7 @@ elif active_page in ["Profile", "Performance"]:
                         st.markdown(f"**🧩 {item['name']}**")
                         st.caption(f"Move {typ_move}")
                     with s2:
-                        st.markdown(f"<div style='padding-top:8px; color:#475569;'>{item['games_count']} ván</div>" if current_lang == "vi" else f"<div style='padding-top:8px; color:#475569;'>{item['games_count']} g</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='padding-top:8px; color:#475569;'>{item['games_count']} ván</div>", unsafe_allow_html=True)
                     with s3:
                         st.markdown(f"<div style='padding-top:8px;'><span style='color:#22C55E; font-weight:600;'>{item['wins']}</span>/<span style='color:#94A3B8;'>{item['draws']}</span>/<span style='color:#EF4444; font-weight:600;'>{item['losses']}</span></div>", unsafe_allow_html=True)
                     with s4:
@@ -1330,14 +1321,14 @@ elif active_page in ["Profile", "Performance"]:
                         st.markdown(f"<div style='padding-top:4px;'><span style='font-weight:700; color:#4F46E5;'>{adj_s}%</span> <span style='font-size:11px; color:{delta_color}; font-weight:600;'>({delta_str})</span><br><span style='font-size:11.5px; font-weight:600; color:{badge_color};'>{badge}</span></div>", unsafe_allow_html=True)
                     with s6:
                         if st.button(
-                            f"🔍 {t('nav_analyze_games', lang=current_lang)}" if current_lang != "vi" else "🔍 Khám phá",
+                            "🔍 Khám phá",
                             key=f"prof_struct_btn_{idx}_{item['name']}",
-                            help=f"Bấm để mở Structure Explorer cho {item['name']}" if current_lang == "vi" else f"Click to open Structure Explorer for {item['name']}",
+                            help=f"Bấm để mở Structure Explorer cho {item['name']}",
                             use_container_width=True
                         ):
                             load_pawn_structure_onto_board(item)
         else:
-            st.info("Chưa phát hiện cấu trúc Tốt đặc trưng." if current_lang == "vi" else "No characteristic pawn structure detected.")
+            st.info("Chưa phát hiện cấu trúc Tốt đặc trưng.")
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
@@ -1352,24 +1343,24 @@ elif active_page in ["Profile", "Performance"]:
         }
 
         with st.container(border=True):
-            st.markdown(f"### 📊 {t('phase_accuracy_title', lang=current_lang)}")
+            st.markdown("### 📊 Độ Chính Xác Từng Giai Đoạn (Phase Accuracy Analysis)")
             if not has_engine:
-                st.info("💡 " + ("Chưa có dữ liệu phân tích từ Stockfish Engine. Hệ thống đang hiển thị thống kê đếm số nước đi phân loại theo từng giai đoạn động:" if current_lang == "vi" else "Stockfish Engine evaluations pending. Showing dynamically classified move counts per phase:"))
+                st.info("💡 Chưa có dữ liệu phân tích từ Stockfish Engine. Hệ thống đang hiển thị thống kê đếm số nước đi phân loại theo từng giai đoạn động:")
 
             # Table Header
             h1, h2, h3, h4, h5 = st.columns([3.0, 1.8, 1.8, 3.2, 2.2])
-            h1.markdown("**Giai đoạn (Phase)**" if current_lang == "vi" else "**Phase**")
-            h2.markdown("**Số ván**" if current_lang == "vi" else "**Games**")
-            h3.markdown("**Số nước**" if current_lang == "vi" else "**Moves**")
-            h4.markdown("**Tỷ lệ Chính xác**" if current_lang == "vi" else "**Accuracy Rate**", help=t("accuracy_tooltip", lang=current_lang))
-            h5.markdown("**Đánh giá**" if current_lang == "vi" else "**Assessment**")
+            h1.markdown("**Giai đoạn (Phase)**")
+            h2.markdown("**Số ván**")
+            h3.markdown("**Số nước**")
+            h4.markdown("**Tỷ lệ Chính xác**", help="Tỷ lệ phần trăm nước đi tốt/tối ưu được tính bởi Stockfish Engine")
+            h5.markdown("**Đánh giá**")
 
             st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
             for phase_key in ["opening", "middlegame", "endgame"]:
                 p_data = phases_info.get(phase_key, {})
                 vi_title, en_title, move_range = phase_names_map[phase_key]
-                title_label = vi_title if current_lang == "vi" else en_title
+                title_label = vi_title
 
                 acc_val = p_data.get("accuracy") or p_data.get("accuracy_pct")
                 games_cnt = p_data.get("games_count", 0)
@@ -1379,26 +1370,26 @@ elif active_page in ["Profile", "Performance"]:
                     acc_str = f"{acc_val}%"
                     if acc_val >= 88.0:
                         color = "#22C55E"
-                        status = "Xuất sắc" if current_lang == "vi" else "Excellent"
+                        status = "Xuất sắc"
                     elif acc_val >= 75.0:
                         color = "#10B981"
-                        status = "Ổn định" if current_lang == "vi" else "Solid"
+                        status = "Ổn định"
                     elif acc_val >= 60.0:
                         color = "#F59E0B"
-                        status = "Trung bình" if current_lang == "vi" else "Average"
+                        status = "Trung bình"
                     else:
                         color = "#EF4444"
-                        status = "Cần cải thiện" if current_lang == "vi" else "Needs Work"
+                        status = "Cần cải thiện"
                 else:
                     acc_str = "N/A"
                     color = "#64748B"
-                    status = "Chờ Stockfish" if current_lang == "vi" else "Pending Engine"
+                    status = "Chờ Stockfish"
 
                 p1, p2, p3, p4, p5 = st.columns([3.0, 1.8, 1.8, 3.2, 2.2])
                 with p1:
                     st.markdown(f"**{title_label}**  \n<span style='font-size:11px; color:#64748B;'>{move_range}</span>", unsafe_allow_html=True)
                 with p2:
-                    st.markdown(f"<div style='padding-top:6px; color:#475569;'>{games_cnt} ván</div>" if current_lang == "vi" else f"<div style='padding-top:6px; color:#475569;'>{games_cnt} g</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div style='padding-top:6px; color:#475569;'>{games_cnt} ván</div>", unsafe_allow_html=True)
                 with p3:
                     st.markdown(f"<div style='padding-top:6px; font-weight:600;'>{moves_cnt}</div>", unsafe_allow_html=True)
                 with p4:
@@ -1426,24 +1417,20 @@ elif active_page in ["Profile", "Performance"]:
                         f"**🔬 Phân tích Chuyên sâu Toàn bộ**  \n"
                         f"<span style='font-size:12.5px; color:#64748B;'>"
                         f"Đang hiển thị mẫu từ **{analyzed_games_count}/{total_filtered_games_count} ván**. Bấm nút để kích hoạt cụm Stockfish đa luồng phân tích toàn bộ 100% {total_filtered_games_count} ván:"
-                        f"</span>" if current_lang == "vi" else
-                        f"**🔬 Deep Analysis On-Demand**  \n"
-                        f"<span style='font-size:12.5px; color:#64748B;'>"
-                        f"Showing sample of **{analyzed_games_count}/{total_filtered_games_count} games**. Click to run multi-threaded Stockfish on all {total_filtered_games_count} games:"
                         f"</span>",
                         unsafe_allow_html=True
                     )
                 with dc2:
                     if st.button(
-                        f"🚀 Phân tích {total_filtered_games_count} ván" if current_lang == "vi" else f"🚀 Analyze All {total_filtered_games_count} Games",
+                        f"🚀 Phân tích {total_filtered_games_count} ván",
                         type="primary",
                         use_container_width=True,
                         key="phase_deep_scan_btn"
                     ):
-                        progress_bar = st.progress(0, text="Đang khởi chạy Stockfish đa luồng..." if current_lang == "vi" else "Launching parallel Stockfish...")
+                        progress_bar = st.progress(0, text="Đang khởi chạy Stockfish đa luồng...")
                         def _on_prog(cur, tot):
                             pct = min(1.0, float(cur) / max(1, tot))
-                            progress_bar.progress(pct, text=f"Đang phân tích ván {cur}/{tot} (Bỏ qua {analyzed_games_count} ván có sẵn)..." if current_lang == "vi" else f"Analyzing game {cur}/{tot} (Skipped {analyzed_games_count} cached games)...")
+                            progress_bar.progress(pct, text=f"Đang phân tích ván {cur}/{tot} (Bỏ qua {analyzed_games_count} ván có sẵn)...")
 
                         deep_eval_res = parallel_batch_analyze_games(
                             filtered_games,
@@ -1452,17 +1439,16 @@ elif active_page in ["Profile", "Performance"]:
                             progress_callback=_on_prog,
                             existing_evaluations=st.session_state.cached_move_evaluations
                         )
-                        progress_bar.progress(1.0, text="Hoàn tất phân tích chuyên sâu!" if current_lang == "vi" else "Deep analysis complete!")
+                        progress_bar.progress(1.0, text="Hoàn tất phân tích chuyên sâu!")
                         st.session_state.cached_move_evaluations = deep_eval_res.get("move_evaluations", [])
                         st.session_state.cached_deep_profile = generate_deep_opponent_profile(
                             filtered_games,
                             stats,
-                            move_evaluations=st.session_state.cached_move_evaluations,
-                            lang=current_lang
+                            move_evaluations=st.session_state.cached_move_evaluations
                         )
                         st.rerun()
             else:
-                st.caption(f"✅ Đã phân tích toàn diện 100% dữ liệu ({total_filtered_games_count}/{total_filtered_games_count} ván đấu)" if current_lang == "vi" else f"✅ Comprehensive 100% analysis completed ({total_filtered_games_count}/{total_filtered_games_count} games)")
+                st.caption(f"✅ Đã phân tích toàn diện 100% dữ liệu ({total_filtered_games_count}/{total_filtered_games_count} ván đấu)")
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
@@ -1472,30 +1458,40 @@ elif active_page in ["Profile", "Performance"]:
         evidence_list = style_prof.get("evidence", [])
 
         with st.container(border=True):
-            st.markdown(f"### 🏆 {t('style_section_title', lang=current_lang)}")
-            st.caption(t("style_section_subtitle", lang=current_lang))
+            st.markdown("### 🏆 Hồ Sơ Phong Cách Thi Đấu (Playing Style Profile)")
+            st.caption("Hệ thống phân loại phong cách đa chiều từ dữ liệu thế cờ & đánh giá nước đi")
+
+            if total_filtered_games_count > analyzed_games_count and total_filtered_games_count > 0:
+                st.warning(
+                    f"⚠️ **Độ tin cậy thấp (Dữ liệu mẫu: {analyzed_games_count}/{total_filtered_games_count} ván)**: "
+                    f"Các chỉ số phong cách và bằng chứng hành vi bên dưới hiện tại chỉ được ước tính dựa trên {analyzed_games_count} ván có đánh giá Stockfish. "
+                    f"Hãy bấm **'Phân tích {total_filtered_games_count} ván'** ở trên để có hồ sơ phong cách chuẩn xác 100%."
+                )
+            else:
+                st.success(
+                    f"✅ **Độ tin cậy cao**: Đã phân tích toàn bộ 100% dữ liệu ({total_filtered_games_count}/{total_filtered_games_count} ván đấu) bằng Stockfish."
+                )
+
             st.markdown("<div style='margin-bottom:12px;'></div>", unsafe_allow_html=True)
 
             if style_prof.get("is_simplifier"):
                 st.info(
-                    f"**{t('badge_simplifier', lang=current_lang)}**: " +
-                    (f"Kỳ thủ thường chủ động đổi quân chuyển về tàn cuộc sớm (Trung bình nước {style_prof.get('avg_endgame_move', 0.0)}) trong các thế cờ cân bằng (-1.5 đến +1.5)."
-                     if current_lang == "vi" else
-                     f"Opponent frequently trades pieces to transition into technical endgames early (Average move {style_prof.get('avg_endgame_move', 0.0)}) in balanced positions (-1.5 to +1.5).")
+                    "**Kỳ thủ Đơn giản hóa (Simplifier)**: " +
+                    f"Kỳ thủ thường chủ động đổi quân chuyển về tàn cuộc sớm (Trung bình nước {style_prof.get('avg_endgame_move', 0.0)}) trong các thế cờ cân bằng (-1.5 đến +1.5)."
                 )
 
             # Style Dimension Bars & Style Evidence
             dim_col1, dim_col2 = st.columns(2)
 
             with dim_col1:
-                st.markdown(f"**{t('style_dimensions_title', lang=current_lang)}**")
+                st.markdown("**Các Chiều Phong Cách Thực Chiến**")
                 dim_items = [
-                    (t("dim_complexity", lang=current_lang), raw_m.get("complexity_index", 50.0), "/ 100"),
-                    (t("dim_volatility", lang=current_lang), raw_m.get("volatility_score", 50.0), "/ 100"),
-                    (t("dim_sacrifice", lang=current_lang), raw_m.get("sacrifice_rate", 0.0), "%"),
-                    (t("dim_simplification", lang=current_lang), raw_m.get("simplification_rate", 0.0), "%"),
-                    (t("dim_resilience", lang=current_lang), raw_m.get("resilience_rate", 50.0), "%"),
-                    (t("dim_closed_pref", lang=current_lang), raw_m.get("closed_preference", 33.4), "%"),
+                    ("Độ phức tạp thế cờ", raw_m.get("complexity_index", 50.0), "/ 100"),
+                    ("Độ biến động thế cờ", raw_m.get("volatility_score", 50.0), "/ 100"),
+                    ("Tần suất thí quân", raw_m.get("sacrifice_rate", 0.0), "%"),
+                    ("Xu hướng đơn giản hóa", raw_m.get("simplification_rate", 0.0), "%"),
+                    ("Khả năng lật kèo", raw_m.get("resilience_rate", 50.0), "%"),
+                    ("Sở thích cờ kín", raw_m.get("closed_preference", 33.4), "%"),
                 ]
                 for d_label, d_val, unit in dim_items:
                     d_c1, d_c2 = st.columns([6, 2.5])
@@ -1505,12 +1501,12 @@ elif active_page in ["Profile", "Performance"]:
                     st.progress(prog_val)
 
             with dim_col2:
-                st.markdown(f"**{t('style_evidence_title', lang=current_lang)}**")
+                st.markdown("**Bằng Chứng Hành Vi Cụ Thể**")
                 if evidence_list:
                     for ev_item in evidence_list:
                         st.markdown(f"• <span style='font-size:13px; color:#334155; line-height:1.5;'>{ev_item}</span>", unsafe_allow_html=True)
                 else:
-                    st.caption("Chưa có đủ dữ liệu để trích xuất bằng chứng." if current_lang == "vi" else "Insufficient data to extract evidence.")
+                    st.caption("Chưa có đủ dữ liệu để trích xuất bằng chứng.")
 
                 st.markdown("<div style='margin-bottom:10px;'></div>", unsafe_allow_html=True)
 
@@ -1521,15 +1517,15 @@ elif active_page in ["Profile", "Performance"]:
         c_white, c_black = st.columns(2)
         with c_white:
             with st.container(border=True):
-                st.markdown("##### Repertoire cầm Trắng" if current_lang == "vi" else "##### White Repertoire")
+                st.markdown("##### Repertoire cầm Trắng")
                 w_rep = deep_profile["repertoire"].get("white_repertoire", [])
                 if w_rep:
                     wh1, wh2, wh3, wh4, wh5 = st.columns([4.8, 1.0, 1.8, 1.4, 2.6])
-                    wh1.markdown("**Khai cuộc**" if current_lang == "vi" else "**Opening**")
-                    wh2.markdown("**Ván**" if current_lang == "vi" else "**G**")
+                    wh1.markdown("**Khai cuộc**")
+                    wh2.markdown("**Ván**")
                     wh3.markdown("**W/D/L**")
                     wh4.markdown("**Raw %**")
-                    wh5.markdown("**Bayes Adj (Độ tin cậy)**" if current_lang == "vi" else "**Bayes Adj (Confidence)**")
+                    wh5.markdown("**Bayes Adj (Độ tin cậy)**")
 
                     st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
@@ -1547,7 +1543,7 @@ elif active_page in ["Profile", "Performance"]:
                             if st.button(
                                 f"♟ {item['name']}",
                                 key=f"prof_w_op_btn_{idx}_{item['name']}",
-                                help=f"Bấm để nạp {item['name']} lên Bàn cờ Phân tích (Cầm Trắng)" if current_lang == "vi" else f"Click to load {item['name']} onto Analysis Board (as White)",
+                                help=f"Bấm để nạp {item['name']} lên Bàn cờ Phân tích (Cầm Trắng)",
                                 use_container_width=True
                             ):
                                 load_opening_onto_board(item['name'], st.session_state.cached_filtered_games, color="white")
@@ -1560,19 +1556,19 @@ elif active_page in ["Profile", "Performance"]:
                         with w5:
                             st.markdown(f"<div style='padding-top:4px;'><span style='font-weight:700; color:#4F46E5;'>{adj_s}%</span> <span style='font-size:10.5px; color:{delta_color}; font-weight:600;'>({delta_str})</span><br><span style='font-size:10.5px; font-weight:600; color:{badge_color};'>{badge}</span></div>", unsafe_allow_html=True)
                 else:
-                    st.info("Không có dữ liệu khi cầm Trắng." if current_lang == "vi" else "No White repertoire data.")
+                    st.info("Không có dữ liệu khi cầm Trắng.")
 
         with c_black:
             with st.container(border=True):
-                st.markdown("##### Repertoire cầm Đen" if current_lang == "vi" else "##### Black Repertoire")
+                st.markdown("##### Repertoire cầm Đen")
                 b_rep = deep_profile["repertoire"].get("black_repertoire", [])
                 if b_rep:
                     bh1, bh2, bh3, bh4, bh5 = st.columns([4.8, 1.0, 1.8, 1.4, 2.6])
-                    bh1.markdown("**Khai cuộc**" if current_lang == "vi" else "**Opening**")
-                    bh2.markdown("**Ván**" if current_lang == "vi" else "**G**")
+                    bh1.markdown("**Khai cuộc**")
+                    bh2.markdown("**Ván**")
                     bh3.markdown("**W/D/L**")
                     bh4.markdown("**Raw %**")
-                    bh5.markdown("**Bayes Adj (Độ tin cậy)**" if current_lang == "vi" else "**Bayes Adj (Confidence)**")
+                    bh5.markdown("**Bayes Adj (Độ tin cậy)**")
 
                     st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
@@ -1590,7 +1586,7 @@ elif active_page in ["Profile", "Performance"]:
                             if st.button(
                                 f"♟ {item['name']}",
                                 key=f"prof_b_op_btn_{idx}_{item['name']}",
-                                help=f"Bấm để nạp {item['name']} lên Bàn cờ Phân tích (Cầm Đen)" if current_lang == "vi" else f"Click to load {item['name']} onto Analysis Board (as Black)",
+                                help=f"Bấm để nạp {item['name']} lên Bàn cờ Phân tích (Cầm Đen)",
                                 use_container_width=True
                             ):
                                 load_opening_onto_board(item['name'], st.session_state.cached_filtered_games, color="black")
@@ -1603,18 +1599,18 @@ elif active_page in ["Profile", "Performance"]:
                         with b5:
                             st.markdown(f"<div style='padding-top:4px;'><span style='font-weight:700; color:#4F46E5;'>{adj_s}%</span> <span style='font-size:10.5px; color:{delta_color}; font-weight:600;'>({delta_str})</span><br><span style='font-size:10.5px; font-weight:600; color:{badge_color};'>{badge}</span></div>", unsafe_allow_html=True)
                 else:
-                    st.info("Không có dữ liệu khi cầm Đen." if current_lang == "vi" else "No Black repertoire data.")
+                    st.info("Không có dữ liệu khi cầm Đen.")
 
 
 # ==============================================================================
 # VIEW 06: MATCH PREPARATION PAGE (DECISION SUPPORT)
 # ==============================================================================
 elif active_page == "Prep":
-    PageHeader(t("nav_match_prep", lang=current_lang), t("prep_header_subtitle", lang=current_lang))
+    PageHeader("Kế hoạch Tác chiến", "Xây dựng kế hoạch thi đấu cụ thể, lựa chọn biến cờ và khai thác điểm yếu đối thủ")
 
     if not active_bytes or not selected_player or not st.session_state.cached_stats:
-        st.info("Vui lòng nạp dữ liệu ván đấu để xem Kế hoạch tác chiến." if current_lang == "vi" else "Please import game data to view match preparation.")
-        if st.button(f"🚀 {t('cta_import_now', lang=current_lang)}", type="primary", use_container_width=True, key="prep_empty_cta"):
+        st.info("Vui lòng nạp dữ liệu ván đấu để xem Kế hoạch tác chiến.")
+        if st.button("🚀 Nạp dữ liệu ngay", type="primary", use_container_width=True, key="prep_empty_cta"):
             st.session_state.active_nav_page = "Import"
             st.rerun()
     else:
@@ -1622,14 +1618,12 @@ elif active_page == "Prep":
         engine = get_stockfish_engine()
 
         # Retrieve or compute cached deep profile
-        if st.session_state.cached_deep_profile is None or st.session_state.cached_profile_lang != current_lang:
+        if st.session_state.cached_deep_profile is None:
             st.session_state.cached_deep_profile = generate_deep_opponent_profile(
                 st.session_state.cached_filtered_games,
                 stats,
-                move_evaluations=st.session_state.cached_move_evaluations,
-                lang=current_lang
+                move_evaluations=st.session_state.cached_move_evaluations
             )
-            st.session_state.cached_profile_lang = current_lang
 
         deep_profile = st.session_state.cached_deep_profile
 
@@ -1638,10 +1632,10 @@ elif active_page == "Prep":
         
         with col_color:
             match_color = st.radio(
-                t("your_color_in_match", lang=current_lang),
+                "Màu quân bạn cầm trong trận đấu tới",
                 options=["white", "black"],
                 index=0 if st.session_state.user_match_color == "white" else 1,
-                format_func=lambda x: f"⚪ {t('play_white_opt', lang=current_lang)}" if x == "white" else f"🖤 {t('play_black_opt', lang=current_lang)}",
+                format_func=lambda x: "⚪ Cầm Trắng (Bạn đi trước)" if x == "white" else "🖤 Cầm Đen (Bạn đi sau)",
                 horizontal=True,
                 key="user_match_color_radio"
             )
@@ -1649,8 +1643,7 @@ elif active_page == "Prep":
 
         actionable_prep = generate_actionable_match_preparation(
             deep_profile,
-            user_color=match_color,
-            lang=current_lang
+            user_color=match_color
         )
 
         with col_down:
@@ -1663,7 +1656,7 @@ elif active_page == "Prep":
                 user_color=match_color
             )
             st.download_button(
-                label=t("download_full_report", lang=current_lang),
+                label="📥 Tải Báo Cáo Kế Hoạch (.md)",
                 data=report_md_prep,
                 file_name=f"match_prep_{selected_player.replace(' ', '_').replace(',', '')}.md",
                 mime="text/markdown",
@@ -1674,7 +1667,7 @@ elif active_page == "Prep":
         st.markdown("<div style='margin-bottom:16px;'></div>", unsafe_allow_html=True)
 
         # 1. STRONGEST vs WEAKEST OPENING (Concise Decision Cards)
-        st.markdown("### 📚 Opening Strategy Focus")
+        st.markdown("### 📚 Khai cuộc Trọng tâm")
         op_col1, op_col2 = st.columns(2)
 
         strong_op = actionable_prep.get("strongest_opening")
@@ -1682,23 +1675,23 @@ elif active_page == "Prep":
 
         with op_col1:
             with st.container(border=True):
-                st.markdown(f"##### 🛡️ {t('strongest_opening_title', lang=current_lang)}")
+                st.markdown("##### 🛡️ Khai cuộc Mạnh nhất của đối thủ")
                 if strong_op:
                     st.markdown(f"**{strong_op['name']}**")
-                    st.caption(f"{strong_op['games_count']} ván • **{strong_op['score_pct']}%** score" if current_lang == "vi" else f"{strong_op['games_count']} games • **{strong_op['score_pct']}%** score")
-                    st.warning("Khuyên dùng: Tránh né biến chính mạnh nhất của đối thủ trừ khi đã chuẩn bị kỹ." if current_lang == "vi" else "Recommendation: Avoid entering opponent's strongest line unless specifically prepared.")
+                    st.caption(f"{strong_op['games_count']} ván • **{strong_op['score_pct']}%** score")
+                    st.warning("Khuyên dùng: Tránh né biến chính mạnh nhất của đối thủ trừ khi đã chuẩn bị kỹ.")
                 else:
-                    st.caption("Chưa phát hiện biến mở đầu vượt trội." if current_lang == "vi" else "No strong opening baseline detected.")
+                    st.caption("Chưa phát hiện biến mở đầu vượt trội.")
 
         with op_col2:
             with st.container(border=True):
-                st.markdown(f"##### ⚔️ {t('weakest_opening_title', lang=current_lang)}")
+                st.markdown("##### ⚔️ Khai cuộc Yếu nhất của đối thủ")
                 if weak_op:
                     st.markdown(f"**{weak_op['name']}**")
-                    st.caption(f"{weak_op['games_count']} ván • **{weak_op['score_pct']}%** score" if current_lang == "vi" else f"{weak_op['games_count']} games • **{weak_op['score_pct']}%** score")
-                    st.success("Khuyên dùng: Chủ động hướng trận đấu vào thế cờ đối thủ đạt hiệu suất kém." if current_lang == "vi" else "Recommendation: Consider lines that can lead toward this structure.")
+                    st.caption(f"{weak_op['games_count']} ván • **{weak_op['score_pct']}%** score")
+                    st.success("Khuyên dùng: Chủ động hướng trận đấu vào thế cờ đối thủ đạt hiệu suất kém.")
                 else:
-                    st.caption("Chưa phát hiện điểm yếu mở đầu rõ rệt." if current_lang == "vi" else "No weak opening baseline detected.")
+                    st.caption("Chưa phát hiện điểm yếu mở đầu rõ rệt.")
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
@@ -1707,57 +1700,57 @@ elif active_page == "Prep":
 
         with b1:
             with st.container(border=True):
-                st.markdown(f"##### {t('target_structure_title', lang=current_lang)}")
+                st.markdown("##### Cấu trúc Tốt mục tiêu")
                 target_st = actionable_prep.get("target_structure")
                 if target_st:
                     st.markdown(f"### {target_st['name']}")
-                    st.caption(f"Score: **{target_st['score_pct']}%** | {target_st['games_count']} ván" if current_lang == "vi" else f"Score: **{target_st['score_pct']}%** | {target_st['games_count']} Games")
-                    st.info(f"Đối thủ thi đấu kém ở cấu trúc {target_st['name']}." if current_lang == "vi" else f"Opponent performs poorly in positions featuring an {target_st['name']}.")
-                    with st.expander("🔍 View Evidence"):
-                        st.write(f"Confidence: {target_st['confidence']['label']}")
-                        st.write(f"Wins: {target_st['wins']} | Draws: {target_st['draws']} | Losses: {target_st['losses']}")
+                    st.caption(f"Score: **{target_st['score_pct']}%** | {target_st['games_count']} ván")
+                    st.info(f"Đối thủ thi đấu kém ở cấu trúc {target_st['name']}.")
+                    with st.expander("🔍 Bằng chứng"):
+                        st.write(f"Độ tin cậy: {target_st['confidence']['label']}")
+                        st.write(f"Thắng: {target_st['wins']} | Hòa: {target_st['draws']} | Thua: {target_st['losses']}")
                 else:
-                    st.caption("Chưa phát hiện điểm yếu cấu trúc Tốt cụ thể." if current_lang == "vi" else "No specific structural weakness identified.")
+                    st.caption("Chưa phát hiện điểm yếu cấu trúc Tốt cụ thể.")
 
         with b2:
             with st.container(border=True):
-                st.markdown(f"##### {t('vulnerability_phase_title', lang=current_lang)}")
+                st.markdown("##### Giai đoạn Dễ tổn thương")
                 weak_phase = actionable_prep.get("vulnerability_phase")
                 if weak_phase:
                     st.markdown(f"### {weak_phase.get('phase', '').upper()}")
                     st.caption(f"Average ACPL: **{weak_phase.get('avg_acpl', 0.0)}**")
-                    st.warning("Độ chính xác đối thủ giảm ở giai đoạn này." if current_lang == "vi" else "Opponent's accuracy decreases in this phase. Simplify or guide game here.")
+                    st.warning("Độ chính xác đối thủ giảm ở giai đoạn này.")
                 else:
-                    st.caption("Phong độ các giai đoạn tương đối cân bằng." if current_lang == "vi" else "Phase performance is balanced.")
+                    st.caption("Phong độ các giai đoạn tương đối cân bằng.")
 
         with b3:
             with st.container(border=True):
-                st.markdown(f"##### {t('game_dynamics_title', lang=current_lang)}")
-                st.markdown(f"Throw Rate: **{actionable_prep.get('throw_rate', 0.0)}%**")
-                st.markdown(f"Resilience: **{actionable_prep.get('resilience_rate', 0.0)}%**")
-                st.caption("Duy trì áp lực thực chiến dù đang dẫn trước hay bị dẫn điểm." if current_lang == "vi" else "Maintain practical pressure when ahead or behind.")
+                st.markdown("##### Động lực Thế cờ")
+                st.markdown(f"Tỷ lệ Đánh mất Thế trận (Throw Rate): **{actionable_prep.get('throw_rate', 0.0)}%**")
+                st.markdown(f"Khả năng Lội ngược dòng (Resilience): **{actionable_prep.get('resilience_rate', 0.0)}%**")
+                st.caption("Duy trì áp lực thực chiến dù đang dẫn trước hay bị dẫn điểm.")
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
         # 3. YOUR FINAL GAME PLAN (PLAY, TARGET, AVOID)
-        st.markdown(f"### 📋 {t('game_plan_title', lang=current_lang)}")
+        st.markdown("### 📋 Kế Hoạch Tác Chiến Trọng Tâm")
         g1, g2, g3 = st.columns(3)
 
         with g1:
             with st.container(border=True):
-                st.markdown(f"#### 🟢 {t('plan_play', lang=current_lang)}")
+                st.markdown("#### 🟢 Nên Chơi (Play Plan)")
                 for item in actionable_prep.get("play_plan", []):
                     st.markdown(f"• {item}")
 
         with g2:
             with st.container(border=True):
-                st.markdown(f"#### 🟡 {t('plan_target', lang=current_lang)}")
+                st.markdown("#### 🟡 Nhắm Vào (Target Plan)")
                 for item in actionable_prep.get("target_plan", []):
                     st.markdown(f"• {item}")
 
         with g3:
             with st.container(border=True):
-                st.markdown(f"#### 🔴 {t('plan_avoid', lang=current_lang)}")
+                st.markdown("#### 🔴 Cần Tránh (Avoid Plan)")
                 for item in actionable_prep.get("avoid_plan", []):
                     st.markdown(f"• {item}")
 
@@ -1791,65 +1784,122 @@ elif active_page == "AIAssistant":
         deep_profile = st.session_state.cached_deep_profile or {}
         fen_w = st.session_state.cached_fen_map_white or {}
         fen_b = st.session_state.cached_fen_map_black or {}
+        filtered_games = st.session_state.cached_filtered_games or []
 
-        # 1. Top Bar: Opponent Info & Model Selector (Giống hệt ChatGPT / Gemini web)
-        st_col1, st_col2 = st.columns([3, 2])
-        with st_col1:
+        total_filtered_games_count = len(filtered_games)
+        analyzed_indices = set(e["game_index"] for e in (st.session_state.cached_move_evaluations or []) if "game_index" in e)
+        analyzed_games_count = len(analyzed_indices)
+
+        # Cảnh báo nếu chưa phân tích toàn bộ ván đấu
+        if total_filtered_games_count > analyzed_games_count and total_filtered_games_count > 0:
             with st.container(border=True):
-                st.markdown(f"### 🤖 Trợ lí Phân tích Đối thủ: **{selected_player}**")
-                st.caption(f"Dữ liệu cơ sở: **{stats.get('total_games', 0)}** ván đấu • Score: **{stats.get('score_percentage', 0)}%** • Đã đồng bộ 100% Profile & Cây Khai cuộc")
-        with st_col2:
-            with st.container(border=True):
-                selected_model = st.selectbox(
-                    "Mô hình AI (Model)",
-                    options=GEMINI_MODELS,
-                    format_func=lambda m: AVAILABLE_MODELS.get(m, m),
-                    index=0,
-                    key="ai_chat_selected_model_dropdown"
-                )
-                st.caption("⚡ Sẵn sàng trò chuyện trực tiếp • Tốc độ cao • Tự động suy luận")
+                w_col1, w_col2 = st.columns([7, 3])
+                with w_col1:
+                    st.markdown(
+                        f"⚠️ **Cảnh báo: Dữ liệu chưa đủ độ tin cậy để phân tích chuyên sâu**  \n"
+                        f"<span style='font-size:13px; color:#475569;'>"
+                        f"Hệ thống hiện tại mới chỉ phân tích mẫu **{analyzed_games_count}/{total_filtered_games_count} ván**. "
+                        f"Các chỉ số phân tích chuyên sâu (độ chính xác từng giai đoạn, điểm yếu chiến thuật, cấu trúc Tốt, phong cách) chưa đầy đủ 100% để đưa ra kết luận chuẩn xác nhất. "
+                        f"Hãy bấm nút bên cạnh để phân tích toàn bộ {total_filtered_games_count} ván đấu cho Trợ lí AI!"
+                        f"</span>",
+                        unsafe_allow_html=True
+                    )
+                with w_col2:
+                    if st.button(
+                        f"🚀 Phân tích {total_filtered_games_count} ván ngay",
+                        type="primary",
+                        use_container_width=True,
+                        key="ai_deep_scan_btn"
+                    ):
+                        progress_bar = st.progress(0, text="Đang khởi chạy Stockfish đa luồng...")
+                        def _on_ai_prog(cur, tot):
+                            pct = min(1.0, float(cur) / max(1, tot))
+                            progress_bar.progress(pct, text=f"Đang phân tích ván {cur}/{tot} (Bỏ qua {analyzed_games_count} ván có sẵn)...")
+
+                        deep_eval_res = parallel_batch_analyze_games(
+                            filtered_games,
+                            depth=6,
+                            max_games=total_filtered_games_count,
+                            progress_callback=_on_ai_prog,
+                            existing_evaluations=st.session_state.cached_move_evaluations
+                        )
+                        progress_bar.progress(1.0, text="Hoàn tất phân tích chuyên sâu!")
+                        st.session_state.cached_move_evaluations = deep_eval_res.get("move_evaluations", [])
+                        st.session_state.cached_deep_profile = generate_deep_opponent_profile(
+                            filtered_games,
+                            stats,
+                            move_evaluations=st.session_state.cached_move_evaluations
+                        )
+                        st.rerun()
+
+        # Top Bar: Opponent Info + Clear Chat + Model Selector
+        top_c1, top_c2, top_c3 = st.columns([4.5, 3.5, 2.0])
+        with top_c1:
+            if analyzed_games_count >= total_filtered_games_count and total_filtered_games_count > 0:
+                cov_badge = f"<span style='display:inline-flex; align-items:center; font-size:11.5px; font-weight:600; color:#15803D; background:#DCFCE7; border:1px solid #86EFAC; padding:2px 8px; border-radius:12px;'>✅ Đã phân tích 100%</span>"
+            else:
+                cov_badge = f"<span style='display:inline-flex; align-items:center; font-size:11.5px; font-weight:600; color:#B45309; background:#FEF3C7; border:1px solid #FCD34D; padding:2px 8px; border-radius:12px;'>⚠️ Dữ liệu mẫu ({analyzed_games_count}/{total_filtered_games_count} ván)</span>"
+
+            st.markdown(
+                f"""
+                <div style='display:flex; align-items:center; gap:8px; height:38px;'>
+                    <span style='font-size:13.5px; font-weight:600; color:#64748B;'>Đối thủ:</span>
+                    <span style='font-size:15.5px; font-weight:700; color:#0F172A; font-family:Inter, sans-serif;'>
+                        ♟️ {selected_player}
+                    </span>
+                    {cov_badge}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        with top_c2:
+            model_options = list(AVAILABLE_MODELS.keys())
+            model_display = [AVAILABLE_MODELS[k] for k in model_options]
+            def_idx = 0
+            selected_display = st.selectbox(
+                "Mô hình AI",
+                options=model_display,
+                index=def_idx,
+                key="ai_model_selector",
+                label_visibility="collapsed"
+            )
+            selected_model = model_options[model_display.index(selected_display)]
+        with top_c3:
+            if st.button("🗑️ Xóa Lịch sử Chat", use_container_width=True, key="clear_ai_chat_btn"):
+                st.session_state.ai_chat_history = []
+                st.session_state.pending_ai_prompt = None
+                st.rerun()
 
         st.markdown("<div style='margin-bottom:12px;'></div>", unsafe_allow_html=True)
 
-        # 2. Quick Prompt Chips
-        st.markdown("##### 💡 Gợi ý câu hỏi phân tích nhanh:")
-        quick_prompts = [
-            "🎯 Khai cuộc sở trường và điểm yếu lớn nhất của đối thủ là gì?",
-            "♟️ Đối thủ xử lý cấu trúc Tốt nào tốt nhất và tệ nhất?",
-            "⏱️ So sánh độ chính xác ở Khai cuộc, Trung cuộc và Tàn cuộc?",
-            "🎭 Tóm tắt phong cách thi đấu và độ biến động chiến thuật?",
-            "👑 Xu hướng đổi Hậu và chuyển tàn cuộc của đối thủ ra sao?",
-            "⚔️ Khi đối thủ cầm Đen đối đầu 1.e4, họ thường phản ứng thế nào?",
-        ]
-
-        q_cols = st.columns(3)
-        for i, q_text in enumerate(quick_prompts):
-            with q_cols[i % 3]:
-                if st.button(q_text, key=f"quick_prompt_btn_{i}", use_container_width=True):
-                    st.session_state.pending_ai_prompt = q_text
-                    st.rerun()
-
-        st.markdown("<hr style='margin:16px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
-
-        # 3. Chat Messages History Container
+        # Chat Message History Container
         chat_container = st.container()
         with chat_container:
             if not st.session_state.ai_chat_history:
-                st.info("👋 Chào bạn! Tôi là Trợ lí AI Phân tích Đối thủ. Bạn có thể trò chuyện trực tiếp, hỏi bất kỳ điều gì về chiến thuật, khai cuộc hay điểm yếu của đối thủ này. Hãy bấm vào các gợi ý ở trên hoặc gõ câu hỏi bên dưới để bắt đầu!")
+                st.markdown("""
+                <div style='background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:20px; text-align:center; color:#64748B;'>
+                    <div style='font-size:32px; margin-bottom:8px;'>🤖</div>
+                    <div style='font-weight:700; font-size:15px; color:#0F172A;'>Trợ lí AI Đại kiện tướng đã sẵn sàng!</div>
+                    <div style='font-size:13px; margin-top:4px;'>Hãy đặt câu hỏi bên dưới để phân tích điểm yếu, phong cách và cách khắc chế đối thủ.</div>
+                </div>
+                """, unsafe_allow_html=True)
             else:
                 for msg in st.session_state.ai_chat_history:
-                    with st.chat_message(msg["role"], avatar="♟️" if msg["role"] == "user" else "🤖"):
-                        st.markdown(msg["content"])
+                    role = msg["role"]
+                    content = msg["content"]
+                    avatar = "♟️" if role == "user" else "🤖"
+                    with st.chat_message(role, avatar=avatar):
+                        st.markdown(content)
 
-        # 4. Handle Pending Prompt from Quick Buttons or Chat Input
-        user_input = st.chat_input("Hỏi bất kỳ điều gì về đối thủ (ví dụ: đối thủ hay thua ở nước cờ nào khi cầm Đen?)...")
+        # Chat Input
+        user_prompt = st.chat_input("Hỏi bất kỳ điều gì về đối thủ (vd: Điểm yếu khai cuộc lớn nhất là gì?)...", key="ai_chat_input_box")
+
         active_prompt = None
-
-        if st.session_state.get("pending_ai_prompt"):
+        if user_prompt:
+            active_prompt = user_prompt
+        elif st.session_state.pending_ai_prompt:
             active_prompt = st.session_state.pending_ai_prompt
             st.session_state.pending_ai_prompt = None
-        elif user_input:
-            active_prompt = user_input
 
         if active_prompt:
             # Append user message
@@ -1864,7 +1914,9 @@ elif active_page == "AIAssistant":
                         stats=stats,
                         fen_map_white=fen_w,
                         fen_map_black=fen_b,
-                        selected_player=selected_player
+                        selected_player=selected_player,
+                        analyzed_games_count=analyzed_games_count,
+                        total_games_count=total_filtered_games_count
                     )
                     stream_gen = stream_gemini_response(
                         prompt=active_prompt,
@@ -1887,7 +1939,7 @@ elif active_page == "AIAssistant":
 # VIEW 07: IMPORT GAMES PAGE
 # ==============================================================================
 elif active_page == "Import":
-    PageHeader(t("nav_import_games", lang=current_lang), t("import_header_subtitle", lang=current_lang))
+    PageHeader("Nạp Ván đấu", "Nạp dữ liệu ván đấu từ file PGN hoặc tải trực tuyến từ Lichess / Chess.com")
 
     col_up, col_on = st.columns(2)
 
@@ -1905,54 +1957,52 @@ elif active_page == "Import":
                 if st.session_state.online_pgn_bytes != new_bytes:
                     progress_placeholder = st.empty()
                     steps_def = [
-                        {"id": "parse", "title": f"Bóc tách dữ liệu từ file {file_up.name}" if current_lang == "vi" else f"Parse data from {file_up.name}"},
-                        {"id": "tree", "title": "Xây dựng Cây Khai cuộc Trắng / Đen" if current_lang == "vi" else "Build Opening Trees (White / Black / All)"},
-                        {"id": "engine", "title": "Phân tích chuyên sâu (Đánh giá có sẵn / Đa luồng)" if current_lang == "vi" else "Deep Analysis (Embedded Evals / Parallel Engine)"},
-                        {"id": "ready", "title": "Nạp bàn cờ phân tích và hoàn tất" if current_lang == "vi" else "Prepare Analysis Board & Finalize"},
+                        {"id": "parse", "title": f"Bóc tách dữ liệu từ file {file_up.name}"},
+                        {"id": "tree", "title": "Xây dựng Cây Khai cuộc Trắng / Đen"},
+                        {"id": "engine", "title": "Phân tích chuyên sâu (Đánh giá có sẵn / Đa luồng)"},
+                        {"id": "ready", "title": "Nạp bàn cờ phân tích và hoàn tất"},
                     ]
                     tracker = AnalysisProgressTracker(
                         progress_placeholder,
                         steps_def,
-                        title=f"Tiến trình nạp file PGN: {file_up.name}" if current_lang == "vi" else f"PGN File Processing: {file_up.name}",
-                        lang=current_lang
+                        title=f"Tiến trình nạp file PGN: {file_up.name}"
                     )
 
                     # Step 1: Parse
-                    tracker.set_step_running("parse", "Đang bóc tách PGN..." if current_lang == "vi" else "Parsing PGN...")
+                    tracker.set_step_running("parse", "Đang bóc tách PGN...")
                     all_games = cached_parse_pgn(new_bytes)
                     primary_player = detect_primary_player(all_games)
                     target_player = primary_player if primary_player else "Unknown Player"
-                    tracker.set_step_done("parse", f"Đã nhận diện {len(all_games)} ván đấu (Kỳ thủ: {target_player})" if current_lang == "vi" else f"Found {len(all_games)} games (Player: {target_player})")
+                    tracker.set_step_done("parse", f"Đã nhận diện {len(all_games)} ván đấu (Kỳ thủ: {target_player})")
 
                     # Step 2: Tree
-                    tracker.set_step_running("tree", "Đang tính toán các biến và thống kê..." if current_lang == "vi" else "Computing variations & statistics...")
+                    tracker.set_step_running("tree", "Đang tính toán các biến và thống kê...")
                     filtered_games = filter_games_by_player(all_games, target_player)
                     stats = calculate_game_stats(filtered_games)
                     _, fen_map_all = build_opening_tree(filtered_games, color="all")
                     _, fen_map_white = build_opening_tree(filtered_games, color="white")
                     _, fen_map_black = build_opening_tree(filtered_games, color="black")
                     repertoire_data = analyze_opening_repertoire(filtered_games)
-                    tracker.set_step_done("tree", f"Đã tạo 3 cây khai cuộc (Tất cả: {len(fen_map_all)}, Trắng: {len(fen_map_white)}, Đen: {len(fen_map_black)} thế cờ)" if current_lang == "vi" else f"Built 3 opening trees (All, White, Black)")
+                    tracker.set_step_done("tree", f"Đã tạo 3 cây khai cuộc (Tất cả: {len(fen_map_all)}, Trắng: {len(fen_map_white)}, Đen: {len(fen_map_black)} thế cờ)")
 
                     # Step 3: Engine
-                    tracker.set_step_running("engine", "Đang đánh giá chất lượng nước đi..." if current_lang == "vi" else "Evaluating positions & pawn structures...")
+                    tracker.set_step_running("engine", "Đang đánh giá chất lượng nước đi...")
                     comp_res = get_comprehensive_move_evaluations(filtered_games, depth=6, max_stockfish_games=10)
                     move_evals = comp_res.get("move_evaluations", []) if comp_res.get("available") else None
                     if comp_res.get("source") == "embedded_pgn":
-                        eval_msg = f"Đã trích xuất đánh giá chất lượng cao từ {comp_res.get('analyzed_games', 0)} ván đấu (0s)" if current_lang == "vi" else f"Extracted embedded evaluations from {comp_res.get('analyzed_games', 0)} games (0s)"
+                        eval_msg = f"Đã trích xuất đánh giá chất lượng cao từ {comp_res.get('analyzed_games', 0)} ván đấu (0s)"
                     else:
-                        eval_msg = f"Đã phân tích {comp_res.get('analyzed_games', 0)} ván đấu mẫu (Depth 6)" if current_lang == "vi" else f"Analyzed {comp_res.get('analyzed_games', 0)} sample games (Depth 6)"
+                        eval_msg = f"Đã phân tích {comp_res.get('analyzed_games', 0)} ván đấu mẫu (Depth 6)"
 
                     deep_profile = generate_deep_opponent_profile(
                         filtered_games,
                         stats,
-                        move_evaluations=move_evals,
-                        lang=current_lang
+                        move_evaluations=move_evals
                     )
                     tracker.set_step_done("engine", eval_msg)
 
                     # Step 4: Ready
-                    tracker.set_step_running("ready", "Đang nạp bàn cờ..." if current_lang == "vi" else "Loading board...")
+                    tracker.set_step_running("ready", "Đang nạp bàn cờ...")
                     st.session_state.online_pgn_bytes = new_bytes
                     st.session_state.online_pgn_name = file_up.name
                     st.session_state.last_selected_player = target_player
@@ -1964,8 +2014,7 @@ elif active_page == "Import":
                     st.session_state.cached_repertoire = repertoire_data
                     st.session_state.cached_move_evaluations = move_evals
                     st.session_state.cached_deep_profile = deep_profile
-                    st.session_state.cached_profile_lang = current_lang
-                    tracker.set_step_done("ready", "Sẵn sàng phân tích!" if current_lang == "vi" else "Ready to analyze!")
+                    tracker.set_step_done("ready", "Sẵn sàng phân tích!")
 
                     st.session_state.active_nav_page = "Analyze"
                     st.rerun()
@@ -1973,102 +2022,100 @@ elif active_page == "Import":
     with col_on:
         with st.container(border=True):
             st.markdown("#### 🌐 Fetch từ Lichess / Chess.com")
-            platform = st.selectbox(t("platform_select", lang=current_lang), options=["Lichess", "Chess.com"], key="import_page_platform_select")
-            online_user = st.text_input(t("username_label", lang=current_lang), placeholder=t("username_placeholder", lang=current_lang), key="import_page_user_input")
+            platform = st.selectbox("Nền tảng cờ vua", options=["Lichess", "Chess.com"], key="import_page_platform_select")
+            online_user = st.text_input("Tên tài khoản người dùng", placeholder="Ví dụ: MagnusCarlsen hoặc Hikaru", key="import_page_user_input")
             max_games_input = st.number_input(
-                t("max_games_label", lang=current_lang),
+                "Số lượng ván đấu cần tải (Tùy chọn)",
                 min_value=1,
                 max_value=300,
                 value=None,
                 step=10,
-                placeholder=t("max_games_placeholder", lang=current_lang),
+                placeholder="Mặc định: 50 ván (Tối đa 300)",
                 key="import_page_max_games"
             )
             max_games = int(max_games_input) if max_games_input is not None else 50
             selected_game_types = st.multiselect(
-                t("game_type_label", lang=current_lang),
+                "Thể loại ván đấu (Tùy chọn)",
                 options=["Bullet", "Blitz", "Rapid", "Classical", "Daily / Correspondence"],
                 default=[],
-                help=t("game_type_help", lang=current_lang),
+                help="Chọn một hoặc nhiều thể loại cần tải. Bỏ trống để tải tất cả các thể loại.",
                 key="import_page_game_types"
             )
 
-            if st.button(t("btn_fetch_games", lang=current_lang), type="primary", use_container_width=True, key="import_page_fetch_online_btn"):
+            if st.button("Tải ván đấu", type="primary", use_container_width=True, key="import_page_fetch_online_btn"):
                 if online_user.strip():
                     progress_placeholder = st.empty()
                     steps_def = [
-                        {"id": "fetch", "title": f"Tải {max_games} ván đấu của {online_user} từ {platform}" if current_lang == "vi" else f"Fetch {max_games} games for {online_user} from {platform}"},
-                        {"id": "parse", "title": "Bóc tách dữ liệu PGN và phát hiện kỳ thủ" if current_lang == "vi" else "Parse PGN data & detect opponent"},
-                        {"id": "tree", "title": "Xây dựng Cây Khai cuộc Trắng / Đen" if current_lang == "vi" else "Build Opening Trees (White / Black / All)"},
-                        {"id": "engine", "title": "Phân tích chuyên sâu (Đánh giá có sẵn / Đa luồng)" if current_lang == "vi" else "Deep Analysis (Embedded Evals / Parallel Engine)"},
-                        {"id": "ready", "title": "Nạp bàn cờ phân tích và hoàn tất" if current_lang == "vi" else "Prepare Analysis Board & Finalize"},
+                        {"id": "fetch", "title": f"Tải {max_games} ván đấu của {online_user} từ {platform}"},
+                        {"id": "parse", "title": "Bóc tách dữ liệu PGN và phát hiện kỳ thủ"},
+                        {"id": "tree", "title": "Xây dựng Cây Khai cuộc Trắng / Đen"},
+                        {"id": "engine", "title": "Phân tích chuyên sâu (Đánh giá có sẵn / Đa luồng)"},
+                        {"id": "ready", "title": "Nạp bàn cờ phân tích và hoàn tất"},
                     ]
                     tracker = AnalysisProgressTracker(
                         progress_placeholder,
                         steps_def,
-                        title=f"Tiến trình nạp và phân tích ván đấu ({platform})" if current_lang == "vi" else f"Data Loading & Analysis Pipeline ({platform})",
-                        lang=current_lang
+                        title=f"Tiến trình nạp và phân tích ván đấu ({platform})"
                     )
 
                     # Step 1: Fetch
-                    tracker.set_step_running("fetch", "Đang kết nối máy chủ..." if current_lang == "vi" else "Connecting to server...")
+                    tracker.set_step_running("fetch", "Đang kết nối máy chủ...")
                     if platform == "Lichess":
                         pgn_bytes, err = fetch_lichess_games(online_user, max_games, perf_types=selected_game_types)
                     else:
                         pgn_bytes, err = fetch_chesscom_games(online_user, max_games, perf_types=selected_game_types)
 
                     if err:
-                        tracker.set_step_error("fetch", f"Lỗi tải ván đấu: {err}" if current_lang == "vi" else f"Fetch error: {err}")
+                        tracker.set_step_error("fetch", f"Lỗi tải ván đấu: {err}")
                         st.error(err)
                     elif pgn_bytes:
-                        tracker.set_step_done("fetch", f"Đã tải thành công ván đấu từ {platform}" if current_lang == "vi" else f"Successfully fetched games from {platform}")
+                        tracker.set_step_done("fetch", f"Đã tải thành công ván đấu từ {platform}")
 
                         # Step 2: Parse
-                        tracker.set_step_running("parse", "Đang bóc tách PGN..." if current_lang == "vi" else "Parsing PGN...")
+                        tracker.set_step_running("parse", "Đang bóc tách PGN...")
                         all_games = cached_parse_pgn(pgn_bytes)
                         primary_player = detect_primary_player(all_games)
                         target_player = primary_player if primary_player else online_user
-                        tracker.set_step_done("parse", f"Đã nhận diện {len(all_games)} ván đấu (Kỳ thủ: {target_player})" if current_lang == "vi" else f"Found {len(all_games)} games (Player: {target_player})")
+                        tracker.set_step_done("parse", f"Đã nhận diện {len(all_games)} ván đấu (Kỳ thủ: {target_player})")
 
                         # Step 3: Tree
-                        tracker.set_step_running("tree", "Đang tính toán các biến và thống kê..." if current_lang == "vi" else "Computing variations & statistics...")
+                        tracker.set_step_running("tree", "Đang tính toán các biến và thống kê...")
                         filtered_games = filter_games_by_player(all_games, target_player)
                         stats = calculate_game_stats(filtered_games)
                         _, fen_map_all = build_opening_tree(filtered_games, color="all")
                         _, fen_map_white = build_opening_tree(filtered_games, color="white")
                         _, fen_map_black = build_opening_tree(filtered_games, color="black")
                         repertoire_data = analyze_opening_repertoire(filtered_games)
-                        tracker.set_step_done("tree", f"Đã tạo 3 cây khai cuộc (Tất cả: {len(fen_map_all)}, Trắng: {len(fen_map_white)}, Đen: {len(fen_map_black)} thế cờ)" if current_lang == "vi" else f"Built 3 opening trees (All, White, Black)")
+                        tracker.set_step_done("tree", f"Đã tạo 3 cây khai cuộc (Tất cả: {len(fen_map_all)}, Trắng: {len(fen_map_white)}, Đen: {len(fen_map_black)} thế cờ)")
 
                         # Step 4: Engine & Deep Profile
-                        tracker.set_step_running("engine", "Đang đánh giá chất lượng nước đi & cấu trúc..." if current_lang == "vi" else "Evaluating positions & styles...")
+                        tracker.set_step_running("engine", "Đang đánh giá chất lượng nước đi & cấu trúc...")
                         if platform == "Lichess":
                             # Lichess: Sử dụng dữ liệu đầy đủ từ Lichess, trích xuất evals có sẵn nếu có, không cần phân tích thêm ván đấu mẫu
                             comp_res = get_comprehensive_move_evaluations(filtered_games, depth=6, max_stockfish_games=0)
                             move_evals = comp_res.get("move_evaluations", []) if comp_res.get("available") else None
                             if comp_res.get("source") == "embedded_pgn":
-                                eval_msg = f"Đã trích xuất đánh giá có sẵn từ {comp_res.get('analyzed_games', 0)} ván đấu Lichess" if current_lang == "vi" else f"Extracted embedded evaluations from {comp_res.get('analyzed_games', 0)} Lichess games"
+                                eval_msg = f"Đã trích xuất đánh giá có sẵn từ {comp_res.get('analyzed_games', 0)} ván đấu Lichess"
                             else:
-                                eval_msg = "Sử dụng dữ liệu đầy đủ từ Lichess" if current_lang == "vi" else "Using full data from Lichess"
+                                eval_msg = "Sử dụng dữ liệu đầy đủ từ Lichess"
                         else:
                             # Chess.com: Phân tích trước 10 ván đấu mẫu ở Depth 6
                             comp_res = get_comprehensive_move_evaluations(filtered_games, depth=6, max_stockfish_games=10)
                             move_evals = comp_res.get("move_evaluations", []) if comp_res.get("available") else None
                             if comp_res.get("source") == "embedded_pgn":
-                                eval_msg = f"Đã trích xuất đánh giá có sẵn từ {comp_res.get('analyzed_games', 0)} ván đấu (0s)" if current_lang == "vi" else f"Extracted embedded evaluations from {comp_res.get('analyzed_games', 0)} games (0s)"
+                                eval_msg = f"Đã trích xuất đánh giá có sẵn từ {comp_res.get('analyzed_games', 0)} ván đấu (0s)"
                             else:
-                                eval_msg = f"Đã phân tích {comp_res.get('analyzed_games', 0)} ván đấu mẫu (Depth 6)" if current_lang == "vi" else f"Analyzed {comp_res.get('analyzed_games', 0)} sample games (Depth 6)"
+                                eval_msg = f"Đã phân tích {comp_res.get('analyzed_games', 0)} ván đấu mẫu (Depth 6)"
 
                         deep_profile = generate_deep_opponent_profile(
                             filtered_games,
                             stats,
-                            move_evaluations=move_evals,
-                            lang=current_lang
+                            move_evaluations=move_evals
                         )
                         tracker.set_step_done("engine", eval_msg)
 
                         # Step 5: Ready
-                        tracker.set_step_running("ready", "Đang lưu bộ nhớ và chuyển trang..." if current_lang == "vi" else "Saving state and loading board...")
+                        tracker.set_step_running("ready", "Đang lưu bộ nhớ và chuyển trang...")
                         st.session_state.online_pgn_bytes = pgn_bytes
                         st.session_state.online_pgn_name = f"{platform}_{online_user}.pgn"
                         st.session_state.last_selected_player = target_player
@@ -2080,8 +2127,7 @@ elif active_page == "Import":
                         st.session_state.cached_repertoire = repertoire_data
                         st.session_state.cached_move_evaluations = move_evals
                         st.session_state.cached_deep_profile = deep_profile
-                        st.session_state.cached_profile_lang = current_lang
-                        tracker.set_step_done("ready", "Sẵn sàng phân tích!" if current_lang == "vi" else "Ready to analyze!")
+                        tracker.set_step_done("ready", "Sẵn sàng phân tích!")
 
                         st.session_state.active_nav_page = "Analyze"
                         st.rerun()
@@ -2096,15 +2142,15 @@ elif active_page == "Import":
             primary_p = detect_primary_player(games_preview)
 
             with st.container(border=True):
-                st.markdown(f"#### {t('data_preview_title', lang=current_lang)}")
+                st.markdown("#### Tổng quan Dữ liệu Đã Nạp")
                 dp1, dp2, dp3 = st.columns(3)
-                dp1.metric(t("games_detected_label", lang=current_lang), len(games_preview))
-                dp2.metric(t("players_detected_label", lang=current_lang), len(players_p))
-                dp3.metric(t("primary_player_label", lang=current_lang), primary_p if primary_p else "N/A")
+                dp1.metric("Số ván nhận diện", len(games_preview))
+                dp2.metric("Số kỳ thủ", len(players_p))
+                dp3.metric("Kỳ thủ chính", primary_p if primary_p else "N/A")
 
                 st.markdown("<div style='margin-bottom:12px;'></div>", unsafe_allow_html=True)
 
-                if st.button(t("btn_start_analysis", lang=current_lang), type="primary", use_container_width=True, key="import_start_analysis_btn"):
+                if st.button("Bắt đầu Phân tích", type="primary", use_container_width=True, key="import_start_analysis_btn"):
                     st.session_state.active_nav_page = "Analyze"
                     st.rerun()
         except Exception as e:
@@ -2115,7 +2161,7 @@ elif active_page == "Import":
 # VIEW 08: SETTINGS PAGE
 # ==============================================================================
 elif active_page == "Settings":
-    PageHeader(t("nav_settings", lang=current_lang), "Cấu hình ứng dụng và tùy chọn hiển thị." if current_lang == "vi" else "App settings and display options.")
+    PageHeader("Cài đặt", "Cấu hình ứng dụng và tùy chọn hiển thị.")
 
     with st.container(border=True):
         st.markdown("#### Tùy chọn Giao diện")
@@ -2143,12 +2189,6 @@ elif active_page == "Settings":
             st.session_state.cached_stats = {}
             st.session_state.cached_repertoire = {}
             st.session_state.cached_filtered_games = []
-            st.session_state.chess_board.reset()
-            st.session_state.move_history = []
-            st.session_state.full_analysis_line = []
-            st.session_state.active_nav_page = "Import"
-            st.success("Đã xóa cache dữ liệu.")
-            st.rerun()
             st.session_state.chess_board.reset()
             st.session_state.move_history = []
             st.session_state.full_analysis_line = []

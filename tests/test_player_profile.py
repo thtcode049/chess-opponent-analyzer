@@ -39,6 +39,6 @@ def test_generate_player_insights():
     insights = generate_player_insights(nep_games, stats, rep_data, tree_data)
 
     assert len(insights) >= 3
-    # Phải chứa thông tin First Move Preference hoặc Thiên hướng nước đi đầu tiên
+    # Phải chứa thông tin Khai cuộc yêu thích hoặc Nước đi đầu tiên
     titles = [ins["title"] for ins in insights]
-    assert any("First Move Preference" in t or "Thiên hướng" in t or "Favorite Opening System" in t or "Hệ thống khai cuộc" in t for t in titles)
+    assert any("Khai cuộc" in t or "yêu thích" in t or "First Move" in t or "Thiên hướng" in t for t in titles)
