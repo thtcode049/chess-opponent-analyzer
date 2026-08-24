@@ -135,26 +135,24 @@ def build_opponent_ai_context(
     else:
         ctx_parts.append("- Chưa có đủ dữ liệu khai cuộc cầm Đen.")
 
-    # 4. Phong cách thi đấu (Style Profile)
+    # 4. Đặc trưng phong cách thi đấu (Style Profile)
     style_prof = deep_profile.get("style_profile", {})
-    ctx_parts.append("\n## IV. PHONG CÁCH THI ĐẤU (PLAYING STYLE PROFILE)")
-    ctx_parts.append(f"- **Phong cách chính**: {style_prof.get('primary_icon', '')} {style_prof.get('primary_style', 'N/A')} (Điểm số: {style_prof.get('primary_score', 0)}%)")
-    ctx_parts.append(f"- **Phong cách phụ**: {style_prof.get('secondary_icon', '')} {style_prof.get('secondary_style', 'N/A')} (Điểm số: {style_prof.get('secondary_score', 0)}%)")
-    ctx_parts.append(f"- **Hình mẫu đại diện (Archetype)**: {style_prof.get('archetype', 'N/A')}")
-    ctx_parts.append(f"- **Độ tin cậy dữ liệu phong cách**: {style_prof.get('confidence_badge', 'N/A')}")
+    ctx_parts.append("\n## IV. ĐẶC TRƯNG PHONG CÁCH THI ĐẤU (PLAYING STYLE PROFILE)")
+    if style_prof.get("is_simplifier"):
+        ctx_parts.append(f"- **Đặc trưng nổi bật**: 👑 **Chuyên gia Tàn cuộc (Simplifier)** (Trung bình vào tàn nước {style_prof.get('avg_endgame_move', 0.0)})")
 
     raw_m = style_prof.get("raw_metrics", {})
-    ctx_parts.append("- **Các chỉ số phong cách đo lường (thang điểm 0 - 100)**:")
-    ctx_parts.append(f"  * Tính phức tạp thế cờ (Complexity Index): {raw_m.get('complexity_index', 50.0)}")
-    ctx_parts.append(f"  * Độ biến động chiến thuật (Volatility Score): {raw_m.get('volatility_score', 50.0)}")
-    ctx_parts.append(f"  * Giữ Hậu sau nước 25 (Queen Retention @25): {raw_m.get('queen_retention_25', 50.0)}")
-    ctx_parts.append(f"  * Tỷ lệ chủ động đổi quân (Simplification Rate): {raw_m.get('simplification_rate', 40.0)}")
-    ctx_parts.append(f"  * Nước cờ phòng thủ dự phòng (Prophylaxis Rate): {raw_m.get('prophylaxis_rate', 30.0)}")
-    ctx_parts.append(f"  * Khả năng kiên cường lội ngược dòng (Resilience Rate): {raw_m.get('resilience_rate', 50.0)}")
+    ctx_parts.append("- **Các chỉ số đo lường thực nghiệm từ ván đấu**:")
+    ctx_parts.append(f"  * Tính phức tạp thế cờ (Complexity Index): {raw_m.get('complexity_index', 50.0)} / 100")
+    ctx_parts.append(f"  * Độ biến động chiến thuật (Volatility Score): {raw_m.get('volatility_score', 50.0)} / 100")
+    ctx_parts.append(f"  * Tỉ lệ ván có nước Thí quân (Sacrifice Rate): {raw_m.get('sacrifice_rate', 0.0)}% ({raw_m.get('total_sacrifices', 0)} nước thí quân)")
+    ctx_parts.append(f"  * Tỉ lệ chuyển tàn cuộc sớm (Simplification Rate): {raw_m.get('simplification_rate', 0.0)}%")
+    ctx_parts.append(f"  * Khả năng kiên cường lội ngược dòng (Resilience Rate): {raw_m.get('resilience_rate', 50.0)}%")
+    ctx_parts.append(f"  * Khuynh hướng cờ kín vs cờ mở: Kín {raw_m.get('closed_preference', 33.4)}% | Mở {raw_m.get('open_preference', 33.3)}%")
 
     evidence = style_prof.get("evidence", [])
     if evidence:
-        ctx_parts.append("- **Bằng chứng thực nghiệm đã ghi nhận**:")
+        ctx_parts.append("- **Bằng chứng thực nghiệm từ dữ liệu ván đấu**:")
         for ev in evidence:
             ctx_parts.append(f"  * {ev}")
 

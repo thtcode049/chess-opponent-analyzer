@@ -1,12 +1,12 @@
 """
-Playing Style Metrics Module (Raw Metrics & Normalization)
----------------------------------------------------------
-Chức năng: Định lượng 9 hành vi cờ vua quan sát được từ dữ liệu ván đấu PGN,
+Playing Style Metrics Module (Factual & Explainable Metrics)
+------------------------------------------------------------
+Chức năng: Đo lường trực tiếp các hành vi và đặc trưng cờ vua thực nghiệm từ dữ liệu ván đấu PGN,
 python-chess board state và Stockfish evaluations.
 
 Nguyên tắc:
 1. Deterministic & Explainable: Mọi metric đều tính toán dựa trên số liệu cụ thể.
-2. Separation of Concerns: Chỉ tính raw metrics và chuẩn hóa 0-100, không chứa logic phân loại style hay UI.
+2. Factual & Reliable: Loại bỏ các chỉ số suy đoán/phức tạp không đáng tin.
 3. Cache-friendly: Tái sử dụng dữ liệu move evaluations có sẵn mà không gọi lại Stockfish.
 """
 
@@ -15,6 +15,16 @@ import statistics
 import chess
 
 from src.analysis.pawn_structure import detect_pawn_structure
+from src.analysis.phase_analysis import classify_phase
+
+
+PIECE_VALUES = {
+    chess.PAWN: 1,
+    chess.KNIGHT: 3,
+    chess.BISHOP: 3,
+    chess.ROOK: 5,
+    chess.QUEEN: 9
+}
 
 
 def clamp_normalize(val: float, min_val: float, max_val: float) -> float:
@@ -23,6 +33,11 @@ def clamp_normalize(val: float, min_val: float, max_val: float) -> float:
         return 50.0
     normalized = ((val - min_val) / (max_val - min_val)) * 100.0
     return round(max(0.0, min(100.0, normalized)), 1)
+
+
+def get_side_material(board: chess.Board, color: chess.Color) -> int:
+    """Tính tổng điểm vật chất của một bên (không tính Vua)."""
+    return sum(len(board.pieces(pt, color)) * val for pt, val in PIECE_VALUES.items())
 
 
 def compute_complexity_index(
@@ -40,7 +55,6 @@ def compute_complexity_index(
     total_positions = 0
     complexity_sum = 0.0
 
-    # Lấy FEN từ move_evaluations nếu có, hoặc replay lại từ filtered_games
     fens_to_check: List[str] = []
     if move_evaluations:
         for ev in move_evaluations:
@@ -49,11 +63,11 @@ def compute_complexity_index(
                 fens_to_check.append(fen)
 
     if not fens_to_check:
-        for game in filtered_games[:20]:  # Giới hạn 20 ván để đảm bảo performance
+        for game in filtered_games[:20]:
             moves = game.get("moves", [])
             board = chess.Board()
             for ply, san in enumerate(moves):
-                if 12 <= ply <= 60:  # Giai đoạn trung cuộc phức tạp
+                if 12 <= ply <= 60:
                     fens_to_check.append(board.fen())
                 try:
                     board.push_san(san)
@@ -74,7 +88,6 @@ def compute_complexity_index(
             n_captures = sum(1 for m in legal_moves if b.is_capture(m))
             n_checks = sum(1 for m in legal_moves if b.gives_check(m))
             
-            # Điểm phức tạp vị trí = cơ sở legal moves + trọng số nước ép buộc (forcing)
             pos_complexity = (n_legal * 1.0) + (n_captures * 3.5) + (n_checks * 4.5)
             complexity_sum += pos_complexity
             total_positions += 1
@@ -85,7 +98,6 @@ def compute_complexity_index(
         return 50.0
 
     avg_complexity = complexity_sum / total_positions
-    # Benchmark: vị trí cờ tiêu chuẩn dao động từ 25 (tĩnh, ít đòn) đến 75 (loạn đòn, sắc nét)
     return clamp_normalize(avg_complexity, min_val=25.0, max_val=75.0)
 
 
@@ -103,112 +115,14 @@ def compute_volatility_score(move_evaluations: Optional[List[Dict[str, Any]]] = 
 
     try:
         stdev_val = statistics.stdev(all_deltas)
-        # Benchmark: độ lệch chuẩn eval delta dao động từ 0.3 (rất phẳng lặng) đến 2.2 (rất hỗn loạn)
         return clamp_normalize(stdev_val, min_val=0.3, max_val=2.2)
     except Exception:
         return 50.0
 
 
-def compute_queen_retention_25(filtered_games: List[Dict[str, Any]]) -> float:
-    """
-    METRIC 3: QUEEN RETENTION AFTER MOVE 25 (0-100)
-    % số ván mà Hậu của cả hai bên vẫn còn trên bàn cờ sau nước 25 (ply 50).
-    """
-    if not filtered_games:
-        return 50.0
-
-    games_with_queens_at_25 = 0
-    total_valid_games = 0
-
-    for game in filtered_games:
-        moves = game.get("moves", [])
-        if not moves:
-            continue
-
-        total_valid_games += 1
-        board = chess.Board()
-        queens_present_at_25 = True
-
-        for ply, san in enumerate(moves):
-            try:
-                board.push_san(san)
-            except Exception:
-                break
-
-            move_num = (ply // 2) + 1
-            if move_num <= 25:
-                w_queens = len(board.pieces(chess.QUEEN, chess.WHITE))
-                b_queens = len(board.pieces(chess.QUEEN, chess.BLACK))
-                if w_queens == 0 or b_queens == 0:
-                    queens_present_at_25 = False
-                    break
-
-        if queens_present_at_25 and len(moves) >= 20:
-            games_with_queens_at_25 += 1
-
-    if total_valid_games == 0:
-        return 50.0
-
-    retention_pct = (games_with_queens_at_25 / total_valid_games) * 100.0
-    return round(max(0.0, min(100.0, retention_pct)), 1)
-
-
-def compute_simplification_metrics(filtered_games: List[Dict[str, Any]]) -> Dict[str, float]:
-    """
-    METRIC 4: SIMPLIFICATION METRICS (0-100)
-    Theo dõi tần suất đổi Hậu sớm trước nước 20 và tốc độ đơn giản hóa lực lượng.
-    """
-    if not filtered_games:
-        return {
-            "queen_trade_before_20": 30.0,
-            "simplification_rate": 40.0
-        }
-
-    queen_traded_early_cnt = 0
-    rapid_simplification_cnt = 0
-    total_games = len(filtered_games)
-
-    for game in filtered_games:
-        moves = game.get("moves", [])
-        board = chess.Board()
-        queen_traded_ply: Optional[int] = None
-        minor_major_trades_before_30 = 0
-
-        for ply, san in enumerate(moves):
-            try:
-                is_cap = ("x" in san)
-                board.push_san(san)
-            except Exception:
-                break
-
-            move_num = (ply // 2) + 1
-            w_queens = len(board.pieces(chess.QUEEN, chess.WHITE))
-            b_queens = len(board.pieces(chess.QUEEN, chess.BLACK))
-
-            if (w_queens == 0 and b_queens == 0) and queen_traded_ply is None:
-                queen_traded_ply = ply
-
-            if is_cap and move_num <= 30:
-                minor_major_trades_before_30 += 1
-
-        if queen_traded_ply is not None and queen_traded_ply <= 40:  # Nước 20 = ply 40
-            queen_traded_early_cnt += 1
-
-        if minor_major_trades_before_30 >= 6 or (queen_traded_ply is not None and queen_traded_ply <= 30):
-            rapid_simplification_cnt += 1
-
-    early_trade_pct = (queen_traded_early_cnt / total_games) * 100.0 if total_games > 0 else 0.0
-    simp_rate_pct = (rapid_simplification_cnt / total_games) * 100.0 if total_games > 0 else 0.0
-
-    return {
-        "queen_trade_before_20": round(early_trade_pct, 1),
-        "simplification_rate": round(simp_rate_pct, 1)
-    }
-
-
 def compute_open_closed_preference(filtered_games: List[Dict[str, Any]]) -> Dict[str, float]:
     """
-    METRIC 5: OPEN / CLOSED PREFERENCE (0-100)
+    METRIC 3: OPEN / CLOSED PREFERENCE (0-100)
     Thống kê tỷ lệ các cấu trúc ván đấu thuộc Open, Semi-Open, Closed.
     """
     if not filtered_games:
@@ -233,7 +147,7 @@ def compute_open_closed_preference(filtered_games: List[Dict[str, Any]]) -> Dict
                 board.push_san(san)
             except Exception:
                 break
-            if 14 <= ply <= 28:  # Nước 8 đến 14
+            if 14 <= ply <= 28:
                 struct_res = detect_pawn_structure(board)
                 st_key = struct_res.get("structure", "Standard")
                 if st_key in ["Open", "Semi-Open", "Closed", "Carlsbad", "Benoni", "IQP"]:
@@ -254,90 +168,13 @@ def compute_open_closed_preference(filtered_games: List[Dict[str, Any]]) -> Dict
     }
 
 
-def compute_prophylaxis_rate(
-    filtered_games: List[Dict[str, Any]],
-    move_evaluations: Optional[List[Dict[str, Any]]] = None
-) -> float:
-    """
-    METRIC 6: PROPHYLAXIS RATE (0-100)
-    Rule-based detection các nước dự phòng (King safety move Kh1/Kb1, defensive wing push h3/a3)
-    được Stockfish kiểm chứng (cpl <= 35).
-    """
-    if not filtered_games:
-        return 30.0
-
-    prophylactic_candidates = 0
-    total_eligible_moves = 0
-
-    # Index move evaluations theo FEN để tra cứu cpl nhanh
-    cpl_by_fen = {}
-    if move_evaluations:
-        for ev in move_evaluations:
-            fen = ev.get("fen_before", "")
-            if fen:
-                cpl_by_fen[fen] = ev.get("cpl", 0.0)
-
-    for game in filtered_games:
-        moves = game.get("moves", [])
-        player_color = game.get("player_color", "white").lower()
-        board = chess.Board()
-
-        for ply, san in enumerate(moves):
-            fen_before = board.fen()
-            is_player_turn = (ply % 2 == 0 and player_color == "white") or (ply % 2 == 1 and player_color == "black")
-            move_num = (ply // 2) + 1
-
-            try:
-                move_obj = board.parse_san(san)
-            except Exception:
-                break
-
-            if is_player_turn and 10 <= move_num <= 35:
-                total_eligible_moves += 1
-                san_clean = san.replace("+", "").replace("#", "")
-                from_sq = move_obj.from_square
-                to_sq = move_obj.to_square
-                piece = board.piece_at(from_sq)
-
-                is_capture = board.is_capture(move_obj)
-                is_quiet = not is_capture and not board.gives_check(move_obj)
-
-                is_prophylactic_shape = False
-                # 1. Di chuyển Vua an toàn / né đòn
-                if piece and piece.piece_type == chess.KING and is_quiet:
-                    if san_clean in ["Kh1", "Kh8", "Kg1", "Kg8", "Kb1", "Kb8", "Kf1", "Kf8"]:
-                        is_prophylactic_shape = True
-
-                # 2. Đẩy Tốt biên phòng thủ ngừa quân đối phương xâm nhập
-                elif piece and piece.piece_type == chess.PAWN and is_quiet:
-                    to_file = chess.square_file(to_sq)
-                    if to_file in [0, 1, 6, 7] and san_clean in ["h3", "h6", "a3", "a6", "g3", "g6", "b3", "b6"]:
-                        is_prophylactic_shape = True
-
-                if is_prophylactic_shape:
-                    # Kiểm tra Stockfish evaluation nếu có
-                    cpl_eval = cpl_by_fen.get(fen_before, 0.0)
-                    if cpl_eval <= 35.0:
-                        prophylactic_candidates += 1
-
-            board.push(move_obj)
-
-    if total_eligible_moves == 0:
-        return 30.0
-
-    raw_rate = (prophylactic_candidates / total_eligible_moves) * 100.0
-    # Benchmark: tỷ lệ nước dự phòng thường chiếm từ 4% đến 22% số nước trung cuộc
-    return clamp_normalize(raw_rate, min_val=4.0, max_val=22.0)
-
-
 def compute_resilience_rate(
     filtered_games: List[Dict[str, Any]],
     move_evaluations: Optional[List[Dict[str, Any]]] = None
 ) -> float:
     """
-    METRIC 7: RESILIENCE RATE (0-100)
-    Một game đủ điều kiện nếu opponent_eval <= -1.5 ở ít nhất một thời điểm.
-    Nếu kết thúc Draw hoặc Win -> resilient game (mỗi game đếm 1 lần duy nhất).
+    METRIC 4: RESILIENCE RATE (0-100)
+    Tỷ lệ cứu hòa hoặc thắng khi từng bị dẫn sâu (eval <= -1.5).
     """
     if not move_evaluations or not filtered_games:
         return 50.0
@@ -362,7 +199,6 @@ def compute_resilience_rate(
 
         min_opp_eval = min([ev.get("eval_after", 0.0) for ev in ev_list], default=0.0)
 
-        # Ngưỡng bị dẫn sâu >= 1.5 pawns
         if min_opp_eval <= -1.5:
             eligible_games += 1
             if is_win or is_draw:
@@ -374,132 +210,281 @@ def compute_resilience_rate(
     return round((resilient_games / eligible_games) * 100.0, 1)
 
 
-def compute_counterattack_conversion_rate(
+def compute_sacrifice_rate(
     filtered_games: List[Dict[str, Any]],
     move_evaluations: Optional[List[Dict[str, Any]]] = None
-) -> Optional[float]:
+) -> Dict[str, Any]:
     """
-    METRIC 8: COUNTERATTACK CONVERSION RATE (0-100 or None)
-    Tìm các ván cờ:
-    1. opponent_eval bị dẫn sâu <= -1.5
-    2. Sau đó có bước ngoặt đảo chiều đánh giá (delta_eval >= +1.5 do đối phương mắc lỗi)
-    3. Kỳ thủ cứu hòa hoặc giành chiến thắng.
-    Trả về None nếu không có ván nào đủ điều kiện.
+    METRIC 5: SACRIFICE RATE (0-100)
+    Tự động nhận diện đòn Thí quân (Sacrifice) và phân biệt với Treo quân / Lỗi ngớ ngẩn (Blunder).
+    
+    Thuật toán:
+    1. Đo lường trước nước đi: Tính chênh lệch vật chất net_material_before = Player_mat - Opp_mat.
+    2. Đo lường sau chuỗi trao đổi (Quiescence / Exchange Resolution):
+       Lần theo chuỗi nước đi tiếp theo trong ván đấu cho tới khi chuỗi bắt quân liên tiếp kết thúc.
+       Tính net_material_after = Player_mat - Opp_mat.
+    3. delta_material = net_material_after - net_material_before.
+    4. delta_eval = eval_after - eval_before (từ góc nhìn kỳ thủ).
+    5. Phân loại:
+       - Nếu delta_material < 0 và delta_eval <= -1.5 (hoặc cpl >= 150) -> Blunder (Lỗi ngớ ngẩn).
+       - Nếu delta_material < 0 và delta_eval >= -0.5 (hoặc cpl <= 50) -> Sacrifice (Thí quân có chủ đích).
+    
+    Tính tỷ lệ phần trăm số ván có ít nhất 1 nước thí quân hợp lệ.
     """
-    if not move_evaluations or not filtered_games:
-        return None
+    if not filtered_games:
+        return {
+            "sacrifice_rate": 0.0,
+            "sacrifice_games_count": 0,
+            "total_sacrifices": 0,
+            "total_blunders": 0,
+            "analyzed_games_count": 0
+        }
 
-    games_map: Dict[int, List[Dict[str, Any]]] = {}
-    for ev in move_evaluations:
-        g_idx = ev.get("game_index", 0)
-        games_map.setdefault(g_idx, []).append(ev)
+    # Index move evaluations theo (game_index, ply)
+    eval_by_game_ply: Dict[tuple, Dict[str, Any]] = {}
+    if move_evaluations:
+        for ev in move_evaluations:
+            g_idx = ev.get("game_index", 0)
+            ply = ev.get("ply", 0)
+            eval_by_game_ply[(g_idx, ply)] = ev
 
-    eligible_deficit_games = 0
-    counterattack_wins = 0
+    games_with_sacrifice = 0
+    total_sacrifices = 0
+    total_blunders = 0
+    analyzed_games = 0
 
-    for g_idx, ev_list in games_map.items():
-        if g_idx >= len(filtered_games):
+    for g_idx, game in enumerate(filtered_games):
+        moves = game.get("moves", [])
+        if not moves:
             continue
-        game = filtered_games[g_idx]
-        player_color = game.get("player_color", "white").lower()
-        result = game.get("result", "*")
 
-        is_win = (player_color == "white" and result == "1-0") or (player_color == "black" and result == "0-1")
-        is_draw = (result == "1/2-1/2")
+        player_color_str = game.get("player_color", "white").lower()
+        player_color = chess.WHITE if player_color_str == "white" else chess.BLACK
 
-        was_in_deficit = False
-        had_turnaround = False
+        has_eval_for_game = any((g_idx, ply) in eval_by_game_ply for ply in range(len(moves)))
+        if move_evaluations and not has_eval_for_game:
+            continue
 
-        for ev in ev_list:
-            eval_after = ev.get("eval_after", 0.0)
-            delta_eval = ev.get("delta_eval", 0.0)
+        analyzed_games += 1
+        game_has_sacrifice = False
+        board = chess.Board()
 
-            if eval_after <= -1.5:
-                was_in_deficit = True
+        for ply, san in enumerate(moves):
+            is_player_turn = (ply % 2 == 0 and player_color == chess.WHITE) or (ply % 2 == 1 and player_color == chess.BLACK)
+            move_num = (ply // 2) + 1
+            
+            # Tính vật chất trước nước đi của kỳ thủ
+            opp_color = not player_color
+            mat_player_before = get_side_material(board, player_color)
+            mat_opp_before = get_side_material(board, opp_color)
+            net_before = mat_player_before - mat_opp_before
 
-            # Sau khi bị dẫn, có nước đi đảo chiều lớn >= 1.5 pawns
-            if was_in_deficit and delta_eval >= 1.5:
-                had_turnaround = True
+            try:
+                move_obj = board.parse_san(san)
+            except Exception:
+                break
 
-        if was_in_deficit:
-            eligible_deficit_games += 1
-            if had_turnaround and (is_win or is_draw):
-                counterattack_wins += 1
+            if is_player_turn and ply >= 6:  # Bỏ qua vài nước khai cuộc đầu tiên
+                ev_data = eval_by_game_ply.get((g_idx, ply))
+                
+                # BỘ LỌC 1: Thế cờ cạnh tranh (Competitive Position Filter)
+                # Bắt buộc Eval trước nước đi phải nằm trong khoảng [-1.5, +2.5]
+                # Tránh bẫy cờ đã thua sâu (<= -1.5) hoặc cờ thắng áp đảo (>= +2.5)
+                eval_before = ev_data.get("eval_before", 0.0) if ev_data else 0.0
+                is_competitive = (-1.5 <= eval_before <= 2.5)
 
-    if eligible_deficit_games == 0:
-        return None
+                if is_competitive:
+                    # BỘ LỌC 2: Mô phỏng chuỗi ăn quân và chiếu liên tiếp cho đến khi bàn cờ tĩnh (Quiescent State)
+                    sim_board = board.copy()
+                    sim_board.push(move_obj)
 
-    return round((counterattack_wins / eligible_deficit_games) * 100.0, 1)
+                    next_ply = ply + 1
+                    while next_ply < len(moves) and next_ply <= ply + 6:
+                        next_san = moves[next_ply]
+                        try:
+                            next_mv = sim_board.parse_san(next_san)
+                            is_forcing = sim_board.is_capture(next_mv) or "x" in next_san or sim_board.gives_check(next_mv) or "+" in next_san
+                            if is_forcing:
+                                sim_board.push(next_mv)
+                                next_ply += 1
+                            else:
+                                # Chuỗi đòn ăn quân kết thúc, bàn cờ đạt trạng thái tĩnh
+                                break
+                        except Exception:
+                            break
+
+                    mat_player_after = get_side_material(sim_board, player_color)
+                    mat_opp_after = get_side_material(sim_board, opp_color)
+                    net_after = mat_player_after - mat_opp_after
+                    delta_material = net_after - net_before
+
+                    # BỘ LỌC 3: Phân loại đòn Thí quân thực sự vs Treo quân (Blunder)
+                    # - Thí quân nhẹ / Quân nặng: delta_material <= -2 (Tượng/Mã lấy Tốt, Xe lấy Tượng/Mã, Hậu)
+                    # - Thí Tốt / Gambit: delta_material == -1 (Chỉ xét trong Khai & Trung cuộc move <= 25 và Eval giữ tốt)
+                    is_piece_sacrifice = (delta_material <= -2)
+                    is_pawn_gambit = (delta_material == -1 and move_num <= 25 and (ev_data.get("eval_after", 0.0) >= -0.25 if ev_data else True))
+
+                    if is_piece_sacrifice or is_pawn_gambit:
+                        if ev_data:
+                            delta_eval = ev_data.get("delta_eval", 0.0)
+                            cpl = ev_data.get("cpl", 0.0)
+
+                            # 1. Blunder: mất chất và eval giảm sâu (delta_eval <= -1.5 hoặc CPL >= 150)
+                            if delta_eval <= -1.5 or cpl >= 150.0:
+                                total_blunders += 1
+                            # 2. Sacrifice: mất chất nhưng eval duy trì hoặc nước đi chuẩn (CPL <= 35 hoặc delta_eval >= -0.35)
+                            elif cpl <= 35.0 or delta_eval >= -0.35:
+                                total_sacrifices += 1
+                                game_has_sacrifice = True
+                        else:
+                            result = game.get("result", "*")
+                            is_win = (player_color_str == "white" and result == "1-0") or (player_color_str == "black" and result == "0-1")
+                            if is_win and is_piece_sacrifice:
+                                total_sacrifices += 1
+                                game_has_sacrifice = True
+
+            board.push(move_obj)
+
+        if game_has_sacrifice:
+            games_with_sacrifice += 1
+
+    total_valid = analyzed_games if analyzed_games > 0 else len(filtered_games)
+    sac_rate = (games_with_sacrifice / total_valid) * 100.0 if total_valid > 0 else 0.0
+
+    return {
+        "sacrifice_rate": round(sac_rate, 1),
+        "sacrifice_games_count": games_with_sacrifice,
+        "total_sacrifices": total_sacrifices,
+        "total_blunders": total_blunders,
+        "analyzed_games_count": total_valid
+    }
 
 
-def compute_phase_consistency_score(
+def compute_simplification_metrics(
     filtered_games: List[Dict[str, Any]],
-    stats: Dict[str, Any],
-    move_evaluations: Optional[List[Dict[str, Any]]] = None,
-    phases_data: Optional[Dict[str, Any]] = None
-) -> float:
+    move_evaluations: Optional[List[Dict[str, Any]]] = None
+) -> Dict[str, Any]:
     """
-    METRIC 9: PHASE & COLOR CONSISTENCY SCORE (0-100)
-    Đo lường tính đồng đều về độ chính xác ACPL giữa 3 giai đoạn (Opening, Middlegame, Endgame),
-    kết hợp khoảng cách hiệu suất giữa White vs Black.
+    METRIC 6: SIMPLIFICATION & ENDGAME TRANSITION (0-100)
+    
+    Quy tắc xác nhận Simplifier:
+    Được xác nhận là Simplifier (is_simplifier = True) KHI VÀ CHỈ KHI:
+    1. Thời điểm vào tàn cuộc trung bình <= Nước 30.
+    2. VÀ thế cờ ngay khi vào tàn cuộc Eval của Stockfish dao động không quá lớn (từ -1.5 đến +1.5).
+    
+    Tái sử dụng hàm chuẩn classify_phase để xác định chính xác thời điểm ván cờ chuyển sang Endgame.
     """
-    phase_acpls = []
-    if phases_data and "phases" in phases_data:
-        p_dict = phases_data["phases"]
-        for p_key in ["opening", "middlegame", "endgame"]:
-            acpl = p_dict.get(p_key, {}).get("avg_acpl")
-            if acpl is not None and acpl > 0:
-                phase_acpls.append(acpl)
+    if not filtered_games:
+        return {
+            "simplification_rate": 0.0,
+            "is_simplifier": False,
+            "avg_endgame_move": 0.0,
+            "balanced_early_endgame_games": 0,
+            "total_endgame_games": 0
+        }
 
-    if len(phase_acpls) >= 2:
-        phase_std = statistics.stdev(phase_acpls)
-    else:
-        phase_std = 15.0  # Mặc định
+    # Index move evaluations theo (game_index, move_number)
+    eval_by_game_move: Dict[tuple, float] = {}
+    if move_evaluations:
+        for ev in move_evaluations:
+            g_idx = ev.get("game_index", 0)
+            m_num = ev.get("move_number", 1)
+            eval_by_game_move[(g_idx, m_num)] = ev.get("eval_after", 0.0)
 
-    w_score = stats.get("white_score_percentage", 50.0)
-    b_score = stats.get("black_score_percentage", 50.0)
-    color_gap = abs(w_score - b_score)
+    endgame_entry_moves: List[int] = []
+    endgame_entry_evals: List[float] = []
+    balanced_early_endgame_cnt = 0
 
-    # Điểm Phase Consistency: Standard deviation càng thấp -> Điểm càng cao
-    norm_phase_consistency = clamp_normalize(35.0 - phase_std, min_val=0.0, max_val=35.0)
-    # Điểm Color Balance: Khoảng cách Trắng/Đen càng nhỏ -> Điểm càng cao
-    norm_color_balance = clamp_normalize(50.0 - color_gap, min_val=0.0, max_val=50.0)
+    for g_idx, game in enumerate(filtered_games):
+        moves = game.get("moves", [])
+        if not moves:
+            continue
 
-    combined = (0.65 * norm_phase_consistency) + (0.35 * norm_color_balance)
-    return round(max(0.0, min(100.0, combined)), 1)
+        board = chess.Board()
+        first_endgame_move: Optional[int] = None
+        eval_at_entry: float = 0.0
+
+        for ply, san in enumerate(moves):
+            try:
+                board.push_san(san)
+            except Exception:
+                break
+
+            move_num = (ply // 2) + 1
+            phase = classify_phase(board, move_num)
+
+            if phase == "endgame" and first_endgame_move is None:
+                first_endgame_move = move_num
+                # Lấy eval tại thời điểm vào tàn cuộc
+                eval_at_entry = eval_by_game_move.get((g_idx, move_num), 0.0)
+                break
+
+        if first_endgame_move is not None:
+            endgame_entry_moves.append(first_endgame_move)
+            endgame_entry_evals.append(eval_at_entry)
+
+            # Điều kiện ván đấu: Chuyển tàn <= Nước 30 VÀ Eval cân bằng [-1.5, +1.5]
+            if first_endgame_move <= 30 and (-1.5 <= eval_at_entry <= 1.5):
+                balanced_early_endgame_cnt += 1
+
+    total_games = len(filtered_games)
+    avg_endgame_move = round(sum(endgame_entry_moves) / len(endgame_entry_moves), 1) if endgame_entry_moves else 0.0
+    avg_endgame_eval = round(sum(endgame_entry_evals) / len(endgame_entry_evals), 2) if endgame_entry_evals else 0.0
+
+    # Tỷ lệ % số ván chuyển tàn sớm trong thế cân bằng
+    simplification_rate = round((balanced_early_endgame_cnt / total_games) * 100.0, 1) if total_games > 0 else 0.0
+
+    # Xác nhận là Simplifier:
+    # Kỳ thủ phải có tỷ lệ ván chuyển tàn sớm trong thế cân bằng đáng kể (>= 35.0%)
+    # VÀ thời điểm vào tàn cuộc trung bình <= 30
+    # VÀ Eval tại thời điểm vào tàn cuộc dao động trong khoảng cân bằng [-1.5, +1.5]
+    is_simplifier = bool(
+        len(endgame_entry_moves) >= 1 and
+        simplification_rate >= 35.0 and
+        avg_endgame_move > 0 and
+        avg_endgame_move <= 30.0 and
+        (-1.5 <= avg_endgame_eval <= 1.5)
+    )
+
+    return {
+        "simplification_rate": simplification_rate,
+        "is_simplifier": is_simplifier,
+        "avg_endgame_move": avg_endgame_move,
+        "avg_endgame_eval": avg_endgame_eval,
+        "balanced_early_endgame_games": balanced_early_endgame_cnt,
+        "total_endgame_games": len(endgame_entry_moves)
+    }
 
 
 def extract_all_style_metrics(
     filtered_games: List[Dict[str, Any]],
-    stats: Dict[str, Any],
+    stats: Optional[Dict[str, Any]] = None,
     move_evaluations: Optional[List[Dict[str, Any]]] = None,
     phases_data: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
-    Tập hợp và trích xuất toàn bộ 9 Raw Metrics.
+    Tập hợp và trích xuất toàn bộ các chỉ số phong cách đáng tin cậy.
     """
     complexity = compute_complexity_index(filtered_games, move_evaluations)
     volatility = compute_volatility_score(move_evaluations)
-    queen_retention = compute_queen_retention_25(filtered_games)
-    simplification_info = compute_simplification_metrics(filtered_games)
     pref_info = compute_open_closed_preference(filtered_games)
-    prophylaxis = compute_prophylaxis_rate(filtered_games, move_evaluations)
     resilience = compute_resilience_rate(filtered_games, move_evaluations)
-    counterattack = compute_counterattack_conversion_rate(filtered_games, move_evaluations)
-    phase_consistency = compute_phase_consistency_score(filtered_games, stats, move_evaluations, phases_data)
+    sacrifice_info = compute_sacrifice_rate(filtered_games, move_evaluations)
+    simplification_info = compute_simplification_metrics(filtered_games, move_evaluations)
 
     return {
         "complexity_index": complexity,
         "volatility_score": volatility,
-        "queen_retention_25": queen_retention,
-        "queen_trade_before_20": simplification_info["queen_trade_before_20"],
+        "sacrifice_rate": sacrifice_info["sacrifice_rate"],
+        "sacrifice_games_count": sacrifice_info["sacrifice_games_count"],
+        "total_sacrifices": sacrifice_info["total_sacrifices"],
+        "total_blunders": sacrifice_info["total_blunders"],
         "simplification_rate": simplification_info["simplification_rate"],
+        "is_simplifier": simplification_info["is_simplifier"],
+        "avg_endgame_move": simplification_info["avg_endgame_move"],
         "open_preference": pref_info["open_preference"],
         "semi_open_preference": pref_info["semi_open_preference"],
         "closed_preference": pref_info["closed_preference"],
-        "prophylaxis_rate": prophylaxis,
         "resilience_rate": resilience,
-        "counterattack_conversion_rate": counterattack,
-        "phase_consistency_score": phase_consistency,
         "has_engine_data": bool(move_evaluations and len(move_evaluations) > 0)
     }

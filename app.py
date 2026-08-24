@@ -1466,9 +1466,8 @@ elif active_page in ["Profile", "Performance"]:
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
-        # 6. PLAYING STYLE PROFILE & SIMPLIFICATION
+        # 6. PLAYING STYLE PROFILE & BEHAVIORAL INDICATORS
         style_prof = deep_profile.get("style_profile", {})
-        scores = style_prof.get("scores", {})
         raw_m = style_prof.get("raw_metrics", {})
         evidence_list = style_prof.get("evidence", [])
 
@@ -1477,31 +1476,13 @@ elif active_page in ["Profile", "Performance"]:
             st.caption(t("style_section_subtitle", lang=current_lang))
             st.markdown("<div style='margin-bottom:12px;'></div>", unsafe_allow_html=True)
 
-            # Top Summary Cards: Primary, Secondary, Confidence
-            st_c1, st_c2, st_c3 = st.columns([4, 4, 3])
-            with st_c1:
-                st.markdown(f"**{t('primary_style_label', lang=current_lang)}**")
-                p_icon = style_prof.get("primary_icon", "♟️")
-                p_name = style_prof.get("primary_style", "N/A")
-                p_score = style_prof.get("primary_score", 0.0)
-                st.markdown(f"<div style='font-size:18px; font-weight:800; color:#1E293B;'>{p_icon} {p_name} <span style='color:#4F46E5;'>({p_score}%)</span></div>", unsafe_allow_html=True)
-                if style_prof.get("archetype"):
-                    st.caption(f"{t('style_archetype_label', lang=current_lang)}: *{style_prof['archetype']}*")
-
-            with st_c2:
-                st.markdown(f"**{t('secondary_style_label', lang=current_lang)}**")
-                s_icon = style_prof.get("secondary_icon", "♟️")
-                s_name = style_prof.get("secondary_style", "N/A")
-                s_score = style_prof.get("secondary_score", 0.0)
-                st.markdown(f"<div style='font-size:17px; font-weight:700; color:#475569;'>{s_icon} {s_name} <span style='color:#64748B;'>({s_score}%)</span></div>", unsafe_allow_html=True)
-
-            with st_c3:
-                st.markdown(f"**{t('style_confidence_label', lang=current_lang)}**")
-                conf_badge = style_prof.get("confidence_badge", "Medium")
-                conf_col = style_prof.get("confidence_color", "#EAB308")
-                st.markdown(f"<div style='font-size:15px; font-weight:800; color:{conf_col}; padding-top:4px;'>● {conf_badge}</div>", unsafe_allow_html=True)
-
-            st.markdown("<hr style='margin:14px 0 14px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
+            if style_prof.get("is_simplifier"):
+                st.info(
+                    f"**{t('badge_simplifier', lang=current_lang)}**: " +
+                    (f"Kỳ thủ thường chủ động đổi quân chuyển về tàn cuộc sớm (Trung bình nước {style_prof.get('avg_endgame_move', 0.0)}) trong các thế cờ cân bằng (-1.5 đến +1.5)."
+                     if current_lang == "vi" else
+                     f"Opponent frequently trades pieces to transition into technical endgames early (Average move {style_prof.get('avg_endgame_move', 0.0)}) in balanced positions (-1.5 to +1.5).")
+                )
 
             # Style Dimension Bars & Style Evidence
             dim_col1, dim_col2 = st.columns(2)
@@ -1509,18 +1490,19 @@ elif active_page in ["Profile", "Performance"]:
             with dim_col1:
                 st.markdown(f"**{t('style_dimensions_title', lang=current_lang)}**")
                 dim_items = [
-                    (t("dim_complexity", lang=current_lang), raw_m.get("complexity_index", 50.0)),
-                    (t("dim_volatility", lang=current_lang), raw_m.get("volatility_score", 50.0)),
-                    (t("dim_queen_retention", lang=current_lang), raw_m.get("queen_retention_25", 50.0)),
-                    (t("dim_simplification", lang=current_lang), raw_m.get("simplification_rate", 40.0)),
-                    (t("dim_prophylaxis", lang=current_lang), raw_m.get("prophylaxis_rate", 30.0)),
-                    (t("dim_resilience", lang=current_lang), raw_m.get("resilience_rate", 50.0)),
+                    (t("dim_complexity", lang=current_lang), raw_m.get("complexity_index", 50.0), "/ 100"),
+                    (t("dim_volatility", lang=current_lang), raw_m.get("volatility_score", 50.0), "/ 100"),
+                    (t("dim_sacrifice", lang=current_lang), raw_m.get("sacrifice_rate", 0.0), "%"),
+                    (t("dim_simplification", lang=current_lang), raw_m.get("simplification_rate", 0.0), "%"),
+                    (t("dim_resilience", lang=current_lang), raw_m.get("resilience_rate", 50.0), "%"),
+                    (t("dim_closed_pref", lang=current_lang), raw_m.get("closed_preference", 33.4), "%"),
                 ]
-                for d_label, d_val in dim_items:
-                    d_c1, d_c2 = st.columns([6, 2])
+                for d_label, d_val, unit in dim_items:
+                    d_c1, d_c2 = st.columns([6, 2.5])
                     d_c1.markdown(f"<span style='font-size:12.5px; font-weight:600;'>{d_label}</span>", unsafe_allow_html=True)
-                    d_c2.markdown(f"<span style='font-size:12.5px; font-weight:800; color:#4F46E5;'>{d_val}</span>", unsafe_allow_html=True)
-                    st.progress(float(d_val) / 100.0)
+                    d_c2.markdown(f"<span style='font-size:12.5px; font-weight:800; color:#4F46E5;'>{d_val} {unit}</span>", unsafe_allow_html=True)
+                    prog_val = max(0.0, min(1.0, float(d_val) / 100.0))
+                    st.progress(prog_val)
 
             with dim_col2:
                 st.markdown(f"**{t('style_evidence_title', lang=current_lang)}**")
@@ -1531,11 +1513,6 @@ elif active_page in ["Profile", "Performance"]:
                     st.caption("Chưa có đủ dữ liệu để trích xuất bằng chứng." if current_lang == "vi" else "Insufficient data to extract evidence.")
 
                 st.markdown("<div style='margin-bottom:10px;'></div>", unsafe_allow_html=True)
-                
-                # Simplification Quick Insight
-                simp = deep_profile.get("simplification", {})
-                if simp.get("recommendation"):
-                    st.info(f"👑 **Simplification**: {simp['recommendation']}")
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 

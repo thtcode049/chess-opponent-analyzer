@@ -49,22 +49,19 @@ def test_build_opponent_ai_context_valid():
             "black_repertoire": []
         },
         "style_profile": {
-            "primary_style": "Tactical Aggressor",
-            "primary_score": 82.5,
-            "primary_icon": "⚔️",
-            "secondary_style": "Speed Specialist",
-            "secondary_score": 70.0,
-            "archetype": "Attacking Grandmaster",
-            "confidence_badge": "Cao (Confirmed)",
+            "is_simplifier": True,
+            "avg_endgame_move": 25.0,
             "raw_metrics": {
                 "complexity_index": 78.0,
                 "volatility_score": 65.0,
-                "queen_retention_25": 80.0,
-                "simplification_rate": 30.0,
-                "prophylaxis_rate": 25.0,
-                "resilience_rate": 60.0
+                "sacrifice_rate": 20.0,
+                "total_sacrifices": 2,
+                "simplification_rate": 40.0,
+                "resilience_rate": 60.0,
+                "closed_preference": 45.0,
+                "open_preference": 55.0
             },
-            "evidence": ["Độ biến động chiến thuật cao", "Xu hướng giữ Hậu đến tàn cuộc"]
+            "evidence": ["Độ biến động chiến thuật cao", "Xác nhận đặc trưng Simplifier"]
         },
         "phases": {
             "phases": {
@@ -98,7 +95,7 @@ def test_build_opponent_ai_context_valid():
 
     ctx = build_opponent_ai_context(deep_profile, stats, selected_player="Magnus")
     assert "BÁO CÁO DỮ LIỆU THỰC NGHIỆM ĐỐI THỦ: MAGNUS" in ctx
-    assert "Tactical Aggressor" in ctx
+    assert "Simplifier" in ctx
     assert "Carlsbad" in ctx
     assert "Sicilian Defense" in ctx
     assert "91.2%" in ctx

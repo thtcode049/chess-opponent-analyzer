@@ -1,209 +1,80 @@
 """
-Playing Style Classifier & Profiler Module
-------------------------------------------
-Chức năng: Nhận 9 raw metrics đã chuẩn hóa và tính 4 điểm phong cách độc lập (0-100),
-xác định Primary/Secondary Style, Confidence, và sinh bằng chứng (Evidence) định lượng.
+Playing Style Profiler & Evidence Module
+----------------------------------------
+Chức năng: Tổng hợp các chỉ số hành vi thực tế (Factual Behavioral Metrics) và sinh
+bằng chứng (Evidence) định lượng trực tiếp từ dữ liệu ván đấu.
 
 Nguyên tắc:
-1. Không hard-code nhãn duy nhất: Tính 4 điểm số độc lập.
-2. Separation of Concerns: Không tạo Game Plan hay Recommendation ở module này.
-3. Factual Evidence: Mọi nhận định đều xuất phát từ metrics quan sát được.
+1. Không dùng điểm số giả lập hay nhãn phong cách gán ghép (Loại bỏ hoàn toàn calculate_style_scores).
+2. Factual Evidence: Mọi nhận định đều xuất phát 100% từ metrics quan sát được (Thí quân, Chuyển tàn, Biến động, v.v.).
+3. Dữ liệu chuẩn xác, tin cậy để làm đầu vào cho UI và AI Assistant.
 """
 
 from typing import Dict, Any, List, Optional
-from src.i18n import t
-
-
-STYLE_DEFINITIONS = {
-    "tactical": {
-        "key": "tactical",
-        "name_vi": "Tấn công / Chiến thuật",
-        "name_en": "Tactical / Aggressive",
-        "icon": "⚔️",
-        "archetype": "Garry Kasparov, Mikhail Tal"
-    },
-    "positional": {
-        "key": "positional",
-        "name_vi": "Thế trận / Bóp nghẹt",
-        "name_en": "Positional / Prophylactic",
-        "icon": "🛡️",
-        "archetype": "Anatoly Karpov, Tigran Petrosian"
-    },
-    "universal": {
-        "key": "universal",
-        "name_vi": "Toàn diện / Kỹ thuật",
-        "name_en": "Universal / Dynamic",
-        "icon": "⚖️",
-        "archetype": "Magnus Carlsen, Bobby Fischer"
-    },
-    "solid": {
-        "key": "solid",
-        "name_vi": "Phòng thủ / Phản công",
-        "name_en": "Solid / Counter-Puncher",
-        "icon": "🏰",
-        "archetype": "Hikaru Nakamura, Sergey Karjakin"
-    }
-}
-
-
-def calculate_style_scores(raw_metrics: Dict[str, Any]) -> Dict[str, float]:
-    """
-    Tính 4 điểm số phong cách độc lập từ 0 - 100.
-    """
-    complexity = raw_metrics.get("complexity_index", 50.0)
-    volatility = raw_metrics.get("volatility_score", 50.0)
-    queen_retention = raw_metrics.get("queen_retention_25", 50.0)
-    simplification_rate = raw_metrics.get("simplification_rate", 40.0)
-    open_pref = raw_metrics.get("open_preference", 33.3)
-    closed_pref = raw_metrics.get("closed_preference", 33.4)
-    prophylaxis = raw_metrics.get("prophylaxis_rate", 30.0)
-    resilience = raw_metrics.get("resilience_rate", 50.0)
-    counterattack = raw_metrics.get("counterattack_conversion_rate")
-    phase_consistency = raw_metrics.get("phase_consistency_score", 50.0)
-
-    low_volatility = max(0.0, min(100.0, 100.0 - volatility))
-    low_prophylaxis = max(0.0, min(100.0, 100.0 - prophylaxis))
-    selective_simplification = max(0.0, min(100.0, 100.0 - simplification_rate))
-    structural_balance = max(0.0, min(100.0, 100.0 - abs(open_pref - closed_pref)))
-
-    # 1. TACTICAL SCORE (0-100)
-    # 30% Complexity + 25% Volatility + 15% Queen Retention + 15% Open Pref + 15% Low Prophylaxis
-    tactical = (
-        0.30 * complexity +
-        0.25 * volatility +
-        0.15 * queen_retention +
-        0.15 * open_pref +
-        0.15 * low_prophylaxis
-    )
-
-    # 2. POSITIONAL SCORE (0-100)
-    # 30% Closed Pref + 25% Low Volatility + 20% Prophylaxis + 15% Stability (Low Volatility) + 10% Selective Simp
-    positional = (
-        0.30 * closed_pref +
-        0.25 * low_volatility +
-        0.20 * prophylaxis +
-        0.15 * low_volatility +
-        0.10 * selective_simplification
-    )
-
-    # 3. UNIVERSAL SCORE (0-100)
-    # 40% Phase Consistency + 25% Color Consistency + 20% Structural Balance + 15% Consistent Conversion
-    universal = (
-        0.40 * phase_consistency +
-        0.25 * phase_consistency +
-        0.20 * structural_balance +
-        0.15 * phase_consistency
-    )
-
-    # 4. SOLID SCORE (0-100)
-    # Nếu có Counterattack Conversion: 30% Resilience + 25% Counterattack + 20% Low Volatility + 15% Closed Pref + 10% Simplification
-    # Nếu không có Counterattack: Tái phân bổ trọng số (45% Resilience + 30% Low Volatility + 15% Closed Pref + 10% Simplification)
-    if counterattack is not None:
-        solid = (
-            0.30 * resilience +
-            0.25 * counterattack +
-            0.20 * low_volatility +
-            0.15 * closed_pref +
-            0.10 * simplification_rate
-        )
-    else:
-        solid = (
-            0.45 * resilience +
-            0.30 * low_volatility +
-            0.15 * closed_pref +
-            0.10 * simplification_rate
-        )
-
-    return {
-        "tactical": round(max(0.0, min(100.0, tactical)), 1),
-        "positional": round(max(0.0, min(100.0, positional)), 1),
-        "universal": round(max(0.0, min(100.0, universal)), 1),
-        "solid": round(max(0.0, min(100.0, solid)), 1)
-    }
-
-
-def determine_primary_and_secondary_style(
-    scores: Dict[str, float],
-    sample_size: int = 1,
-    lang: str = "vi"
-) -> Dict[str, Any]:
-    """
-    Xếp hạng style và tính toán mức độ tin cậy (Confidence).
-    """
-    sorted_styles = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-    primary_key, primary_score = sorted_styles[0]
-    secondary_key, secondary_score = sorted_styles[1]
-
-    score_separation = round(primary_score - secondary_score, 1)
-
-    # Tính toán mức độ tin cậy
-    if sample_size >= 10 and score_separation >= 8.0:
-        conf_level = "HIGH"
-        conf_badge = t("conf_high", lang=lang) if lang == "vi" else "High Confidence"
-        conf_color = "#22C55E"
-    elif sample_size >= 5 and score_separation >= 4.0:
-        conf_level = "MEDIUM"
-        conf_badge = t("conf_med", lang=lang) if lang == "vi" else "Medium Confidence"
-        conf_color = "#EAB308"
-    else:
-        conf_level = "LOW"
-        conf_badge = t("conf_low", lang=lang) if lang == "vi" else "Low Confidence"
-        conf_color = "#94A3B8"
-
-    def _get_label(key: str) -> str:
-        d = STYLE_DEFINITIONS.get(key, {})
-        return d.get(f"name_{lang}", key.capitalize())
-
-    def _get_icon(key: str) -> str:
-        return STYLE_DEFINITIONS.get(key, {}).get("icon", "♟️")
-
-    return {
-        "primary_key": primary_key,
-        "primary_name": _get_label(primary_key),
-        "primary_icon": _get_icon(primary_key),
-        "primary_score": primary_score,
-        "secondary_key": secondary_key,
-        "secondary_name": _get_label(secondary_key),
-        "secondary_icon": _get_icon(secondary_key),
-        "secondary_score": secondary_score,
-        "score_separation": score_separation,
-        "confidence_level": conf_level,
-        "confidence_badge": conf_badge,
-        "confidence_color": conf_color,
-        "archetype": STYLE_DEFINITIONS.get(primary_key, {}).get("archetype", "")
-    }
 
 
 def generate_style_evidence(raw_metrics: Dict[str, Any], lang: str = "vi") -> List[str]:
     """
-    Sinh 3 đến 5 câu bằng chứng (Evidence) định lượng hoàn toàn từ metrics thực tế.
+    Sinh các câu bằng chứng (Evidence) định lượng hoàn toàn từ metrics thực tế.
     """
     evidence: List[str] = []
 
     comp = raw_metrics.get("complexity_index", 50.0)
     vol = raw_metrics.get("volatility_score", 50.0)
-    q_ret = raw_metrics.get("queen_retention_25", 50.0)
+    sac_rate = raw_metrics.get("sacrifice_rate", 0.0)
+    total_sac = raw_metrics.get("total_sacrifices", 0)
+    simp_rate = raw_metrics.get("simplification_rate", 0.0)
+    is_simp = raw_metrics.get("is_simplifier", False)
+    avg_eg_move = raw_metrics.get("avg_endgame_move", 0.0)
     closed_p = raw_metrics.get("closed_preference", 33.4)
     open_p = raw_metrics.get("open_preference", 33.3)
     resil = raw_metrics.get("resilience_rate", 50.0)
-    phase_c = raw_metrics.get("phase_consistency_score", 50.0)
-    simp_r = raw_metrics.get("simplification_rate", 40.0)
+    has_eval = raw_metrics.get("has_engine_data", False)
 
-    # 1. Complexity
-    if comp >= 62.0:
+    # 1. Thí quân (Sacrifice Rate)
+    if has_eval:
+        if sac_rate >= 15.0 or total_sac >= 2:
+            evidence.append(
+                f"Lối chơi mạo hiểm và sắc bén: xuất hiện đòn thí quân có chủ đích trong {sac_rate}% số ván đấu ({total_sac} nước thí quân đã ghi nhận)."
+                if lang == "vi" else
+                f"Sharp and tactical play: intentional sacrifices observed in {sac_rate}% of games ({total_sac} verified sacrifices)."
+            )
+        elif sac_rate == 0.0:
+            evidence.append(
+                "Kỳ thủ duy trì lối chơi an toàn vật chất tuyệt đối, không ghi nhận đòn thí quân mạo hiểm nào (Sacrifice Rate: 0%)."
+                if lang == "vi" else
+                "Strict material preservation with zero speculative sacrifices (0% sacrifice rate)."
+            )
+
+    # 2. Đơn giản hóa về tàn cuộc (Simplification & Endgame Transition)
+    if is_simp:
         evidence.append(
-            f"Kỳ thủ thường xuyên đưa ván cờ vào các vị trí có độ phức tạp và áp lực chiến thuật cao ({comp}/100)."
+            f"Xác nhận đặc trưng Simplifier: thường xuyên đổi quân đưa ván đấu về tàn cuộc sớm (TB nước {avg_eg_move}, chiếm {simp_rate}% số ván) trong các thế cờ cân bằng (-1.5 đến +1.5)."
+            if lang == "vi" else
+            f"Confirmed Simplifier profile: frequently trades pieces into early endgames (avg move {avg_eg_move}, {simp_rate}% of games) in balanced positions."
+        )
+    elif simp_rate < 25.0 or avg_eg_move > 30.0:
+        evidence.append(
+            f"Kỳ thủ ít khi chủ động chuyển tàn sớm (Tỉ lệ chuyển tàn: {simp_rate}%), có xu hướng kéo dài và giải quyết trận đấu ở trung cuộc."
+            if lang == "vi" else
+            f"Rarely seeks early endgame simplification ({simp_rate}% early rate), preferring to resolve battles in prolonged middlegames."
+        )
+
+    # 3. Độ phức tạp thế cờ (Complexity Index)
+    if comp >= 60.0:
+        evidence.append(
+            f"Thường xuyên đưa ván cờ vào các vị trí có độ phức tạp và áp lực chiến thuật cao ({comp}/100)."
             if lang == "vi" else
             f"Frequently steers positions into high tactical complexity and forcing tension ({comp}/100)."
         )
-    elif comp <= 38.0:
+    elif comp <= 40.0:
         evidence.append(
             f"Ưu tiên các thế cờ tĩnh, cấu trúc rõ ràng và ít đòn va chạm phức tạp ({comp}/100)."
             if lang == "vi" else
             f"Prefers static positions with clear structures and low tactical volatility ({comp}/100)."
         )
 
-    # 2. Volatility
+    # 4. Độ biến động thế cờ (Evaluation Volatility)
     if vol >= 60.0:
         evidence.append(
             f"Độ biến động thế cờ (Evaluation Volatility) ở mức cao ({vol}/100), cho thấy ván đấu thường diễn ra gay cấn và nhiều bước ngoặt."
@@ -217,22 +88,8 @@ def generate_style_evidence(raw_metrics: Dict[str, Any], lang: str = "vi") -> Li
             f"Evaluation volatility is low ({vol}/100), demonstrating a controlled and solid positional approach."
         )
 
-    # 3. Queen Retention & Simplification
-    if q_ret >= 60.0:
-        evidence.append(
-            f"Duy trì Hậu trên bàn cờ qua nước 25 trong {q_ret}% số ván để duy trì hỏa lực công thủ."
-            if lang == "vi" else
-            f"Retains queens beyond move 25 in {q_ret}% of games to maintain tactical firepower."
-        )
-    elif simp_r >= 55.0:
-        evidence.append(
-            f"Có xu hướng chủ động đổi quân và đưa thế cờ về đơn giản hóa ({simp_r}% ván đổi quân nhanh)."
-            if lang == "vi" else
-            f"Shows a distinct tendency to trade pieces and simplify positions ({simp_r}% early simplification rate)."
-        )
-
-    # 4. Open vs Closed Preference
-    if closed_p >= 48.0:
+    # 5. Cấu trúc Tốt (Open vs Closed Preference)
+    if closed_p >= 45.0:
         evidence.append(
             f"Ưu tiên chọn các cấu trúc trung tâm kín hoặc bán mở ({closed_p}% số ván)."
             if lang == "vi" else
@@ -245,31 +102,23 @@ def generate_style_evidence(raw_metrics: Dict[str, Any], lang: str = "vi") -> Li
             f"Frequently opens central files to maximize piece activity ({open_p}% open center rate)."
         )
 
-    # 5. Resilience
-    if resil >= 55.0:
+    # 6. Khả năng chịu ép (Resilience Rate)
+    if resil >= 50.0:
         evidence.append(
-            f"Khả năng chịu ép ấn tượng (Resilience): cứu hòa hoặc giành chiến thắng {resil}% số ván khi từng bị dẫn sâu."
+            f"Khả năng chịu ép ấn tượng (Resilience): cứu hòa hoặc giành chiến thắng {resil}% số ván khi từng bị dẫn sâu (eval <= -1.5)."
             if lang == "vi" else
-            f"Impressive resilience: saves a draw or wins in {resil}% of games after facing severe deficits."
-        )
-
-    # 6. Phase Consistency
-    if phase_c >= 65.0:
-        evidence.append(
-            f"Độ chính xác (ACPL) đồng đều qua cả 3 giai đoạn Khai – Trung – Tàn ({phase_c}/100)."
-            if lang == "vi" else
-            f"High phase consistency: uniform accuracy and ACPL across all three game phases ({phase_c}/100)."
+            f"Impressive resilience: saves a draw or wins in {resil}% of games after facing severe deficits (eval <= -1.5)."
         )
 
     # Fallback nếu danh sách quá ngắn
-    if len(evidence) < 3:
+    if len(evidence) < 2:
         evidence.append(
-            f"Phong cách thi đấu thể hiện sự phân bổ: Tấn công ({raw_metrics.get('complexity_index', 50)}), Phòng thủ ({raw_metrics.get('resilience_rate', 50)})."
+            f"Dữ liệu hành vi: Độ phức tạp ({comp}/100), Biến động ({vol}/100), Tỉ lệ thí quân ({sac_rate}%)."
             if lang == "vi" else
-            f"Playstyle profile exhibits balanced behavioral indicators across tactical and positional dimensions."
+            f"Behavioral indicators: Complexity ({comp}/100), Volatility ({vol}/100), Sacrifice Rate ({sac_rate}%)."
         )
 
-    return evidence[:5]
+    return evidence[:6]
 
 
 def classify_player_style(
@@ -278,27 +127,22 @@ def classify_player_style(
     lang: str = "vi"
 ) -> Dict[str, Any]:
     """
-    Tạo cấu trúc dữ liệu Playing Style Profile hoàn chỉnh.
+    Tạo cấu trúc dữ liệu Playing Style Profile thực nghiệm hoàn chỉnh.
     """
-    scores = calculate_style_scores(raw_metrics)
-    ranking = determine_primary_and_secondary_style(scores, sample_size=sample_size, lang=lang)
     evidence = generate_style_evidence(raw_metrics, lang=lang)
 
     return {
         "raw_metrics": raw_metrics,
-        "scores": scores,
-        "primary_style": ranking["primary_name"],
-        "primary_key": ranking["primary_key"],
-        "primary_icon": ranking["primary_icon"],
-        "primary_score": ranking["primary_score"],
-        "secondary_style": ranking["secondary_name"],
-        "secondary_key": ranking["secondary_key"],
-        "secondary_icon": ranking["secondary_icon"],
-        "secondary_score": ranking["secondary_score"],
-        "score_separation": ranking["score_separation"],
-        "confidence": ranking["confidence_level"],
-        "confidence_badge": ranking["confidence_badge"],
-        "confidence_color": ranking["confidence_color"],
-        "archetype": ranking["archetype"],
-        "evidence": evidence
+        "metrics": raw_metrics,
+        "evidence": evidence,
+        "is_simplifier": raw_metrics.get("is_simplifier", False),
+        "avg_endgame_move": raw_metrics.get("avg_endgame_move", 0.0),
+        "sacrifice_rate": raw_metrics.get("sacrifice_rate", 0.0),
+        "simplification_rate": raw_metrics.get("simplification_rate", 0.0),
+        "complexity_index": raw_metrics.get("complexity_index", 50.0),
+        "volatility_score": raw_metrics.get("volatility_score", 50.0),
+        "resilience_rate": raw_metrics.get("resilience_rate", 50.0),
+        "open_preference": raw_metrics.get("open_preference", 33.3),
+        "closed_preference": raw_metrics.get("closed_preference", 33.4),
+        "has_engine_data": raw_metrics.get("has_engine_data", False)
     }

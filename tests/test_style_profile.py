@@ -1,8 +1,9 @@
 """
-Unit Tests for Playing Style Profile Module
--------------------------------------------
-Tests 9 raw metrics, 4 independent style scores, normalization,
-primary/secondary classification, confidence rating, evidence generation, and edge cases.
+Unit Tests for Playing Style Profile Module (Factual & Explainable Metrics)
+---------------------------------------------------------------------------
+Kiểm thử các chỉ số thực nghiệm: Complexity, Volatility, Sacrifice Rate,
+Simplification Metrics (Endgame <= Move 30 & Balanced Eval), Open/Closed, Resilience,
+và sinh Bằng chứng thực tế (Evidence).
 """
 
 import sys
@@ -16,18 +17,13 @@ from src.analysis.style_metrics import (
     clamp_normalize,
     compute_complexity_index,
     compute_volatility_score,
-    compute_queen_retention_25,
-    compute_simplification_metrics,
     compute_open_closed_preference,
-    compute_prophylaxis_rate,
     compute_resilience_rate,
-    compute_counterattack_conversion_rate,
-    compute_phase_consistency_score,
+    compute_sacrifice_rate,
+    compute_simplification_metrics,
     extract_all_style_metrics
 )
 from src.analysis.style_classifier import (
-    calculate_style_scores,
-    determine_primary_and_secondary_style,
     generate_style_evidence,
     classify_player_style
 )
@@ -70,38 +66,6 @@ def test_volatility_score():
     assert wild_vol > flat_vol
 
 
-def test_queen_retention_25():
-    # Game where queens traded on move 4
-    early_trade_game = {
-        "moves": ["e4", "e5", "d4", "exd4", "Qxd4", "Nc6", "Qxg7", "Qf6", "Qxf6", "Nxf6"],
-        "player_color": "white"
-    }
-    # Game where queens stay on board for 30 moves
-    long_game_moves = [
-        "e4", "e5", "Nf3", "Nc6", "Bb5", "a6", "Ba4", "Nf6", "O-O", "Be7",
-        "Re1", "b5", "Bb3", "d6", "c3", "O-O", "h3", "Nb8", "d4", "Nbd7",
-        "c4", "c6", "cxb5", "axb5", "Nc3", "Bb7", "Bg5", "h6", "Bh4", "Re8",
-        "Qd2", "Qb8", "Rad1", "Bf8", "a3", "Qa7", "Ba2", "Rad8", "Qc2", "Qb6",
-        "dxe5", "dxe5", "Rd2", "Be7", "Red1", "Qc7", "Bg3", "Bf8", "Nh4", "Nc5"
-    ]
-    long_game = {"moves": long_game_moves, "player_color": "white"}
-
-    ret_early = compute_queen_retention_25([early_trade_game])
-    ret_long = compute_queen_retention_25([long_game])
-
-    assert ret_early == 0.0
-    assert ret_long == 100.0
-
-
-def test_simplification_metrics():
-    early_trade_game = {
-        "moves": ["e4", "e5", "d4", "exd4", "Qxd4", "Nc6", "Qxg7", "Qf6", "Qxf6", "Nxf6"],
-        "player_color": "white"
-    }
-    simp = compute_simplification_metrics([early_trade_game])
-    assert simp["queen_trade_before_20"] == 100.0
-
-
 def test_open_closed_preference():
     open_game = {
         "moves": ["e4", "e5", "Nf3", "Nc6", "d4", "exd4", "c3", "dxc3", "Bc4", "cxb2", "Bxb2", "d6", "O-O", "Nf6"],
@@ -115,23 +79,6 @@ def test_open_closed_preference():
     assert pref["open_preference"] >= 0.0
     assert pref["closed_preference"] >= 0.0
     assert round(pref["open_preference"] + pref["semi_open_preference"] + pref["closed_preference"]) == 100.0
-
-
-def test_prophylaxis_rate():
-    games = [{
-        "moves": [
-            "e4", "c5", "Nf3", "d6", "d4", "cxd4", "Nxd4", "Nf6", "Nc3", "a6",
-            "Be3", "e5", "Nb3", "Be6", "f3", "Be7", "Qd2", "O-O", "O-O-O", "Nbd7",
-            "g4", "b5", "Kb1", "Nb6", "h4", "Rc8", "h5", "b4", "Nd5", "Nbxd5",
-            "exd5", "Nxd5", "Bf2", "a5", "Bd3", "a4", "Nc1", "Nf4", "Be4", "d5"
-        ],
-        "player_color": "white"
-    }]
-    evals = [
-        {"fen_before": "r1bq1rk1/1p2bppp/p1np1n2/4p3/4P3/1NN1BP2/PPPQ2PP/2KR1B1R b - - 1 11", "cpl": 10.0}
-    ]
-    proph = compute_prophylaxis_rate(games, evals)
-    assert 0.0 <= proph <= 100.0
 
 
 def test_resilience_rate():
@@ -149,119 +96,94 @@ def test_resilience_rate():
     assert resil == round((2 / 3) * 100.0, 1)
 
 
-def test_counterattack_conversion():
-    games = [
-        {"player_color": "white", "result": "1-0"},
-        {"player_color": "white", "result": "0-1"}
+def test_sacrifice_rate_vs_blunder():
+    # Game 1: Evans Gambit pawn sacrifice (ply 6: 4. b4, followed by 4... Bxb4)
+    sac_game = {
+        "moves": ["e4", "e5", "Nf3", "Nc6", "Bc4", "Bc5", "b4", "Bxb4", "c3", "Ba5", "d4", "exd4", "O-O"],
+        "player_color": "white",
+        "result": "1-0"
+    }
+    # Eval shows White has dynamic compensation (delta_eval = 0.1, cpl = 0)
+    sac_evals = [
+        {"game_index": 0, "ply": 6, "eval_before": 0.1, "delta_eval": 0.1, "cpl": 0.0, "eval_after": 0.2}
     ]
+
+    # Game 2: Blunder where White hangs Queen for nothing (ply 6: Ng5 allowing 4... Bxd1)
+    blunder_game = {
+        "moves": ["e4", "e5", "Nf3", "d6", "Bc4", "Bg4", "Ng5", "Bxd1"],
+        "player_color": "white",
+        "result": "0-1"
+    }
+    # Eval drops heavily for White (delta_eval = -8.0, cpl = 500)
+    blunder_evals = [
+        {"game_index": 1, "ply": 6, "eval_before": 0.0, "delta_eval": -8.0, "cpl": 500.0, "eval_after": -8.0}
+    ]
+
+    all_games = [sac_game, blunder_game]
+    all_evals = sac_evals + blunder_evals
+
+    res = compute_sacrifice_rate(all_games, all_evals)
+    assert res["sacrifice_games_count"] == 1
+    assert res["total_sacrifices"] >= 1
+    assert res["total_blunders"] >= 1
+    assert res["sacrifice_rate"] == 50.0
+
+
+def test_simplification_metrics_and_simplifier_criteria():
+    # Game where early queen and minor piece trades lead to endgame by move 20
+    early_endgame_moves = [
+        "e4", "e5", "Nf3", "Nf6", "Nxe5", "d6", "Nf3", "Nxe4", "Qe2", "Qe7",
+        "d3", "Nf6", "Qxe7+", "Bxe7", "Be2", "O-O", "O-O", "Re8", "Re1", "Bf8",
+        "Bg5", "Nbd7", "Nbd2", "h6", "Bh4", "g5", "Bg3", "Nh5", "c3", "Nxg3",
+        "hxg3", "Nf6", "d4", "Bf5", "Bc4", "Rxe1+", "Rxe1", "Re8", "Rxe8", "Nxe8"
+    ]
+    early_game = {"moves": early_endgame_moves, "player_color": "white"}
     evals = [
-        {"game_index": 0, "eval_after": -2.0, "delta_eval": -0.5},
-        {"game_index": 0, "eval_after": 0.5, "delta_eval": 2.5},   # Turnaround and won
-        {"game_index": 1, "eval_after": -2.5, "delta_eval": -0.8}  # Deficit and lost
+        {"game_index": 0, "move_number": 7, "eval_after": 0.2},
+        {"game_index": 0, "move_number": 15, "eval_after": 0.1},
+        {"game_index": 0, "move_number": 20, "eval_after": -0.2}
     ]
-    ca = compute_counterattack_conversion_rate(games, evals)
-    assert ca == 50.0
 
-    # When no deficit games exist
-    assert compute_counterattack_conversion_rate([], None) is None
-
-
-def test_phase_consistency_score():
-    phases_data_uniform = {
-        "phases": {
-            "opening": {"avg_acpl": 22.0},
-            "middlegame": {"avg_acpl": 24.0},
-            "endgame": {"avg_acpl": 25.0}
-        }
-    }
-    stats_balanced = {"white_score_percentage": 52.0, "black_score_percentage": 50.0}
-    score_uniform = compute_phase_consistency_score([], stats_balanced, None, phases_data_uniform)
-
-    phases_data_wild = {
-        "phases": {
-            "opening": {"avg_acpl": 10.0},
-            "middlegame": {"avg_acpl": 65.0},
-            "endgame": {"avg_acpl": 120.0}
-        }
-    }
-    stats_skewed = {"white_score_percentage": 85.0, "black_score_percentage": 25.0}
-    score_wild = compute_phase_consistency_score([], stats_skewed, None, phases_data_wild)
-
-    assert score_uniform > score_wild
-
-
-def test_style_scores_calculation():
-    tactical_metrics = {
-        "complexity_index": 85.0,
-        "volatility_score": 80.0,
-        "queen_retention_25": 85.0,
-        "open_preference": 75.0,
-        "prophylaxis_rate": 15.0,
-        "closed_preference": 10.0,
-        "simplification_rate": 20.0,
-        "resilience_rate": 40.0,
-        "counterattack_conversion_rate": 30.0,
-        "phase_consistency_score": 50.0
-    }
-    scores = calculate_style_scores(tactical_metrics)
-    assert scores["tactical"] > scores["positional"]
-    assert scores["tactical"] > scores["solid"]
-
-
-def test_primary_secondary_and_confidence():
-    scores = {
-        "tactical": 82.0,
-        "universal": 68.0,
-        "positional": 45.0,
-        "solid": 38.0
-    }
-    res_high = determine_primary_and_secondary_style(scores, sample_size=15, lang="vi")
-    assert res_high["primary_key"] == "tactical"
-    assert res_high["secondary_key"] == "universal"
-    assert res_high["confidence_level"] == "HIGH"
-
-    # Small separation
-    scores_close = {
-        "tactical": 52.0,
-        "universal": 51.0,
-        "positional": 50.0,
-        "solid": 49.0
-    }
-    res_low = determine_primary_and_secondary_style(scores_close, sample_size=3, lang="vi")
-    assert res_low["confidence_level"] == "LOW"
+    simp_res = compute_simplification_metrics([early_game], evals)
+    assert simp_res["avg_endgame_move"] <= 30.0
+    assert simp_res["simplification_rate"] == 100.0
+    assert simp_res["is_simplifier"] is True
 
 
 def test_evidence_generation():
     raw_m = {
-        "complexity_index": 80.0,
-        "volatility_score": 75.0,
-        "queen_retention_25": 78.0,
+        "complexity_index": 78.0,
+        "volatility_score": 70.0,
+        "sacrifice_rate": 25.0,
+        "total_sacrifices": 3,
+        "simplification_rate": 45.0,
+        "is_simplifier": True,
+        "avg_endgame_move": 24.0,
         "closed_preference": 20.0,
-        "open_preference": 70.0,
-        "resilience_rate": 65.0,
-        "phase_consistency_score": 72.0,
-        "simplification_rate": 25.0
+        "open_preference": 65.0,
+        "resilience_rate": 60.0,
+        "has_engine_data": True
     }
     evidence_vi = generate_style_evidence(raw_m, lang="vi")
     assert len(evidence_vi) >= 3
-    assert any("phức tạp" in ev for ev in evidence_vi)
-    assert any("Hậu" in ev for ev in evidence_vi)
+    assert any("thí quân" in ev for ev in evidence_vi)
+    assert any("Simplifier" in ev for ev in evidence_vi)
 
     evidence_en = generate_style_evidence(raw_m, lang="en")
     assert len(evidence_en) >= 3
-    assert any("complexity" in ev.lower() for ev in evidence_en)
+    assert any("sacrifice" in ev.lower() for ev in evidence_en)
+    assert any("simplifier" in ev.lower() for ev in evidence_en)
 
 
 def test_classify_player_style_end_to_end():
     raw_m = extract_all_style_metrics([], {}, None, None)
     profile = classify_player_style(raw_m, sample_size=5, lang="vi")
 
-    assert "scores" in profile
-    assert "primary_style" in profile
-    assert "secondary_style" in profile
-    assert "confidence" in profile
+    assert "metrics" in profile
     assert "evidence" in profile
-    assert len(profile["evidence"]) >= 1
+    assert "is_simplifier" in profile
+    assert "sacrifice_rate" in profile
+    assert "simplification_rate" in profile
 
 
 def test_deep_opponent_profile_integration():
@@ -277,5 +199,7 @@ def test_deep_opponent_profile_integration():
     deep_prof = generate_deep_opponent_profile(games, stats, move_evaluations=None, lang="vi")
 
     assert "style_profile" in deep_prof
-    assert "scores" in deep_prof["style_profile"]
-    assert "primary_style" in deep_prof["style_profile"]
+    assert "metrics" in deep_prof["style_profile"]
+    assert "evidence" in deep_prof["style_profile"]
+    assert "sacrifice_rate" in deep_prof["style_profile"]["metrics"]
+    assert "simplification_rate" in deep_prof["style_profile"]["metrics"]

@@ -158,31 +158,29 @@ def generate_local_expert_response(
     # =========================================================================
     # 3. TRẢ LỜI VỀ PHONG CÁCH THI ĐẤU & CHIẾN THUẬT (STYLE & DYNAMICS)
     # =========================================================================
-    if any(k in p for k in ["phong cách", "style", "chiến thuật", "biến động", "volatility", "complexity", "lối chơi"]):
-        lines = [f"### 🎭 Hồ sơ Phong cách Thi đấu của **{selected_player}**\n"]
-        lines.append(f"- **Phong cách chính**: {style_prof.get('primary_icon', '♟️')} **{style_prof.get('primary_style', 'Chưa xác định')}** ({style_prof.get('primary_score', 0)}% điểm phù hợp)")
-        if style_prof.get("secondary_style"):
-            lines.append(f"- **Phong cách phụ**: {style_prof.get('secondary_icon', '♟️')} **{style_prof.get('secondary_style', '')}** ({style_prof.get('secondary_score', 0)}%)")
-        if style_prof.get("archetype"):
-            lines.append(f"- **Hình mẫu kỳ thủ đại diện (Archetype)**: *{style_prof['archetype']}*")
-        lines.append(f"- **Mức độ tin cậy của mẫu**: `{style_prof.get('confidence_badge', 'N/A')}`\n")
+    # 3. TRẢ LỜI VỀ PHONG CÁCH THI ĐẤU (PLAYING STYLE PROFILE)
+    # =========================================================================
+    if any(k in p for k in ["phong cách", "style", "chiến thuật", "biến động", "volatility", "complexity", "thí quân", "sacrifice", "lối chơi"]):
+        lines = [f"### 🎭 Đặc trưng Phong cách Thi đấu của **{selected_player}**\n"]
+        if style_prof.get("is_simplifier"):
+            lines.append(f"- **Đặc trưng nổi bật**: 👑 **Chuyên gia Tàn cuộc (Simplifier)** (Thường chủ động đưa về tàn cuộc sớm, TB nước `{style_prof.get('avg_endgame_move', 0.0)}` trong thế cờ cân bằng)\n")
 
-        lines.append("#### 📊 6 Chỉ số Đo lường Phong cách (Thang điểm 0 - 100):")
+        lines.append("#### 📊 Các Chỉ số Đo lường Thực nghiệm từ Ván đấu:")
         dim_labels = [
             ("Tính phức tạp thế cờ (Complexity)", raw_m.get("complexity_index", 50.0)),
             ("Độ biến động chiến thuật (Volatility)", raw_m.get("volatility_score", 50.0)),
-            ("Xu hướng giữ Hậu sau nước 25 (Queen Retention)", raw_m.get("queen_retention_25", 50.0)),
-            ("Tỷ lệ chủ động đổi quân (Simplification)", raw_m.get("simplification_rate", 40.0)),
-            ("Nước cờ phòng thủ dự phòng (Prophylaxis)", raw_m.get("prophylaxis_rate", 30.0)),
+            ("Tỉ lệ ván có nước Thí quân (Sacrifice Rate)", raw_m.get("sacrifice_rate", 0.0)),
+            ("Chuyển tàn cuộc sớm (Simplification Rate)", raw_m.get("simplification_rate", 0.0)),
             ("Khả năng kiên cường lội ngược dòng (Resilience)", raw_m.get("resilience_rate", 50.0)),
+            ("Khuynh hướng cờ kín (Closed Preference)", raw_m.get("closed_preference", 33.4)),
         ]
         for name, val in dim_labels:
-            bar = "█" * int(val / 10) + "░" * (10 - int(val / 10))
-            lines.append(f"- **{name}**: `{bar}` **{val} / 100**")
+            bar = "█" * int(min(100.0, max(0.0, float(val))) / 10) + "░" * (10 - int(min(100.0, max(0.0, float(val))) / 10))
+            lines.append(f"- **{name}**: `{bar}` **{val}%**")
 
         evidence = style_prof.get("evidence", [])
         if evidence:
-            lines.append("\n#### 🔍 Bằng chứng Thực nghiệm từ Ván đấu:")
+            lines.append("\n#### 🔍 Bằng chứng Thực nghiệm từ Dữ liệu Ván đấu:")
             for ev in evidence:
                 lines.append(f"- {ev}")
 
@@ -191,18 +189,18 @@ def generate_local_expert_response(
     # =========================================================================
     # 4. TRẢ LỜI VỀ ĐỔI HẬU & ĐƠN GIẢN HÓA (SIMPLIFICATION & QUEEN TRADES)
     # =========================================================================
-    if any(k in p for k in ["đổi hậu", "queen", "hậu", "đơn giản hóa", "simplification", "đổi quân"]):
-        lines = [f"### 👑 Thói quen Đổi Hậu & Đơn giản hóa của **{selected_player}**\n"]
-        lines.append(f"- **Số ván diễn ra đổi Hậu**: {simp.get('queen_trade_count', 0)} ván")
-        lines.append(f"- **Tỷ lệ thắng của đối thủ khi đổi Hậu**: **{simp.get('queen_trade_winrate', 0)}%**")
-        lines.append(f"- **Xu hướng giữ Hậu sau nước 25**: `{raw_m.get('queen_retention_25', 50.0)} / 100`")
+    if any(k in p for k in ["đổi hậu", "queen", "hậu", "đơn giản hóa", "simplification", "đổi quân", "tàn cuộc sớm"]):
+        lines = [f"### 👑 Thói quen Chuyển Tàn & Đơn giản hóa của **{selected_player}**\n"]
+        lines.append(f"- **Tỷ lệ chuyển tàn cuộc sớm**: **{raw_m.get('simplification_rate', 0.0)}%**")
+        lines.append(f"- **Thời điểm vào tàn cuộc trung bình**: **Nước {raw_m.get('avg_endgame_move', 0.0)}**")
+        lines.append(f"- **Xác nhận Simplifier**: `{'Có' if style_prof.get('is_simplifier') else 'Không'}`")
         if simp.get("recommendation"):
             lines.append(f"- **Nhận định từ dữ liệu**: *{simp['recommendation']}*")
 
-        if simp.get("queen_trade_winrate", 50) < 45.0:
-            lines.append("\n💡 **Khuyến nghị chiến thuật**: Đối thủ đạt tỷ lệ thắng **dưới 45% khi đổi Hậu**. Bạn nên chủ động gạ đổi Hậu sớm để tước đi khả năng tấn công của đối thủ và bước vào tàn cuộc có lợi.")
-        elif simp.get("queen_trade_winrate", 50) > 60.0:
-            lines.append("\n⚠️ **Khuyến nghị chiến thuật**: Đối thủ chơi **rất tốt sau khi đổi Hậu** ({simp.get('queen_trade_winrate', 0)}% winrate). Hãy cố gắng giữ Hậu trên bàn cờ để duy trì áp lực chiến thuật phức tạp.")
+        if style_prof.get("is_simplifier"):
+            lines.append("\n💡 **Khuyến nghị chiến thuật**: Đối thủ là **Simplifier** có xu hướng đổi quân sớm đưa về tàn cuộc cân bằng. Nếu muốn tạo áp lực, bạn nên tránh các cấu trúc đối xứng và giữ quân phức tạp ở trung cuộc.")
+        elif simp.get("queens_off", {}).get("score_pct", 50) < 45.0:
+            lines.append("\n💡 **Khuyến nghị chiến thuật**: Đối thủ đạt tỷ lệ thắng **dưới 45% khi đổi Hậu**. Bạn nên chủ động gạ đổi Hậu sớm để đưa về tàn cuộc có lợi.")
 
         return "\n".join(lines)
 
