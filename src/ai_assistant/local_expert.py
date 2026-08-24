@@ -96,7 +96,7 @@ def generate_local_expert_response(
             lines.append(f"  - 👉 **Kế hoạch khai thác**: Hãy điều hướng ván cờ vào dạng cấu trúc **{worst_s['name']}** này để tạo ưu thế chiến lược.")
 
         lines.append("\n**Bảng tổng hợp tất cả cấu trúc Tốt đối thủ từng gặp:**\n")
-        lines.append("| Cấu trúc Tốt | Số ván | W/D/L | Score % | Bayes Adj | Đánh giá |")
+        lines.append("| Cấu trúc Tốt | Số ván | W/D/L | Score % | Độ tin cậy | Đánh giá |")
         lines.append("| :--- | :---: | :---: | :---: | :---: | :--- |")
         for s in structs[:6]:
             lines.append(f"| **{s['name']}** | {s['games_count']} | {s['wins']}/{s['draws']}/{s['losses']} | {s.get('score_pct', 0)}% | **{s.get('adjusted_score_pct', 0)}%** | {s.get('assessment_badge', 'N/A')} |")
@@ -212,10 +212,10 @@ def generate_local_expert_response(
         lines.append("#### ⚪ Khi đối thủ cầm TRẮNG (White Repertoire):")
         if w_rep:
             top_w = w_rep[0]
-            lines.append(f"- **Khai cuộc chơi nhiều nhất**: **{top_w['name']}** ({top_w['games_count']} ván, Score: **{top_w.get('score_pct', 0)}%**, Bayes Adj: **{top_w.get('adjusted_score_pct', 0)}%**)")
+            lines.append(f"- **Khai cuộc chơi nhiều nhất**: **{top_w['name']}** ({top_w['games_count']} ván, Score: **{top_w.get('score_pct', 0)}%**, Độ tin cậy: **{top_w.get('adjusted_score_pct', 0)}%**)")
             lines.append(f"- **Đánh giá**: `{top_w.get('assessment_badge', 'N/A')}` (Delta: `{top_w.get('delta_vs_baseline', 0):+}%`)")
             
-            lines.append("\n| Khai cuộc (Trắng) | Số ván | W/D/L | Score % | Bayes Adj | Đánh giá |")
+            lines.append("\n| Khai cuộc (Trắng) | Số ván | W/D/L | Score % | Độ tin cậy | Đánh giá |")
             lines.append("| :--- | :---: | :---: | :---: | :---: | :--- |")
             for item in w_rep[:5]:
                 lines.append(f"| **{item['name']}** | {item['games_count']} | {item['wins']}/{item['draws']}/{item['losses']} | {item.get('score_pct', 0)}% | **{item.get('adjusted_score_pct', 0)}%** | {item.get('assessment_badge', 'N/A')} |")
@@ -226,10 +226,10 @@ def generate_local_expert_response(
         lines.append("\n#### ⚫ Khi đối thủ cầm ĐEN (Black Repertoire):")
         if b_rep:
             top_b = b_rep[0]
-            lines.append(f"- **Khai cuộc phòng thủ chính**: **{top_b['name']}** ({top_b['games_count']} ván, Score: **{top_b.get('score_pct', 0)}%**, Bayes Adj: **{top_b.get('adjusted_score_pct', 0)}%**)")
+            lines.append(f"- **Khai cuộc phòng thủ chính**: **{top_b['name']}** ({top_b['games_count']} ván, Score: **{top_b.get('score_pct', 0)}%**, Độ tin cậy: **{top_b.get('adjusted_score_pct', 0)}%**)")
             lines.append(f"- **Đánh giá**: `{top_b.get('assessment_badge', 'N/A')}` (Delta: `{top_b.get('delta_vs_baseline', 0):+}%`)")
 
-            lines.append("\n| Khai cuộc (Đen) | Số ván | W/D/L | Score % | Bayes Adj | Đánh giá |")
+            lines.append("\n| Khai cuộc (Đen) | Số ván | W/D/L | Score % | Độ tin cậy | Đánh giá |")
             lines.append("| :--- | :---: | :---: | :---: | :---: | :--- |")
             for item in b_rep[:5]:
                 lines.append(f"| **{item['name']}** | {item['games_count']} | {item['wins']}/{item['draws']}/{item['losses']} | {item.get('score_pct', 0)}% | **{item.get('adjusted_score_pct', 0)}%** | {item.get('assessment_badge', 'N/A')} |")
@@ -255,14 +255,14 @@ def generate_local_expert_response(
         weak_structs = [s for s in structs if s.get("delta_vs_baseline", 0) < 0]
         if weak_structs:
             worst_s = sorted(weak_structs, key=lambda x: x.get("adjusted_score_pct", 50))[0]
-            lines.append(f"2. 🧬 **Tử huyệt Cấu trúc Tốt**: Cấu trúc **{worst_s['name']}** (Score: **{worst_s.get('score_pct', 0)}%**, Bayes Adj: **{worst_s.get('adjusted_score_pct', 0)}%**, Đánh giá: `{worst_s.get('assessment_badge', 'N/A')}`).")
+            lines.append(f"2. 🧬 **Tử huyệt Cấu trúc Tốt**: Cấu trúc **{worst_s['name']}** (Score: **{worst_s.get('score_pct', 0)}%**, Độ tin cậy: **{worst_s.get('adjusted_score_pct', 0)}%**, Đánh giá: `{worst_s.get('assessment_badge', 'N/A')}`).")
 
         # 3. Điểm yếu khai cuộc
         all_rep = w_rep + b_rep
         weak_openings = [o for o in all_rep if o.get("delta_vs_baseline", 0) < 0 and o.get("games_count", 0) >= 2]
         if weak_openings:
             worst_op = sorted(weak_openings, key=lambda x: x.get("adjusted_score_pct", 50))[0]
-            lines.append(f"3. 📚 **Khai cuộc dễ tổn thương nhất**: **{worst_op['name']}** (Score: **{worst_op.get('score_pct', 0)}%**, Bayes Adj: **{worst_op.get('adjusted_score_pct', 0)}%**, Thua: {worst_op.get('losses', 0)}/{worst_op.get('games_count', 0)} ván).")
+            lines.append(f"3. 📚 **Khai cuộc dễ tổn thương nhất**: **{worst_op['name']}** (Score: **{worst_op.get('score_pct', 0)}%**, Độ tin cậy: **{worst_op.get('adjusted_score_pct', 0)}%**, Thua: {worst_op.get('losses', 0)}/{worst_op.get('games_count', 0)} ván).")
 
         # 4. Điểm yếu giai đoạn
         phases_acc = {}

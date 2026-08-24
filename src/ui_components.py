@@ -74,6 +74,16 @@ def apply_global_styles(theme_mode: str = "light"):
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
         }
 
+        /* Prevent UI Dimming & Blurring during script runs and background processing */
+        [data-stale="true"] {
+            opacity: 1 !important;
+            filter: none !important;
+            transition: none !important;
+        }
+        div[data-testid="stAppViewBlockContainer"] {
+            transition: none !important;
+        }
+
         /* Animations for Stepper Progress */
         @keyframes stepSpin {
             0% { transform: rotate(0deg); }
@@ -100,6 +110,49 @@ def apply_global_styles(theme_mode: str = "light"):
         }
         .dots-ellipsis span:nth-child(3) {
             animation-delay: 0.4s;
+        }
+
+        /* Animated Thinking Dots Indicator for AI Assistant */
+        .ai-thinking-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13.5px;
+            color: #475569;
+            font-weight: 500;
+            padding: 6px 12px;
+            background: #F1F5F9;
+            border: 1px solid #E2E8F0;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .ai-thinking-dots {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .ai-thinking-dots span {
+            width: 5px;
+            height: 5px;
+            background-color: #10B981;
+            border-radius: 50%;
+            display: inline-block;
+            animation: bounceDot 1.4s infinite ease-in-out both;
+        }
+        .ai-thinking-dots span:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+        .ai-thinking-dots span:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+        @keyframes bounceDot {
+            0%, 80%, 100% { 
+                transform: scale(0);
+                opacity: 0.3;
+            } 40% { 
+                transform: scale(1.0);
+                opacity: 1;
+            }
         }
 
         /* Typography */

@@ -1337,7 +1337,7 @@ elif active_page in ["Profile", "Performance"]:
                 sh2.markdown("**Số ván**")
                 sh3.markdown("**W / D / L**")
                 sh4.markdown("**Raw %**")
-                sh5.markdown("**Bayes Adj (Độ tin cậy)**")
+                sh5.markdown("**Độ tin cậy**", help="Chỉ số hiệu chỉnh Bayesian: Triệt tiêu sai lệch khi số lượng ván đấu còn ít (kéo điểm về mức phong độ trung bình). Phần trăm trong ngoặc là độ lệch (+/-) so với trung bình, kèm nhãn đánh giá độ tin cậy.")
                 sh6.markdown("**Thao tác**")
 
                 st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
@@ -1472,10 +1472,12 @@ elif active_page in ["Profile", "Performance"]:
                         use_container_width=True,
                         key="phase_deep_scan_btn"
                     ):
-                        progress_bar = st.progress(0, text="Đang khởi chạy Stockfish đa luồng...")
+                        init_pct = float(analyzed_games_count) / max(1, total_filtered_games_count) * 0.92
+                        progress_bar = st.progress(init_pct, text=f"Đang phân tích {analyzed_games_count}/{total_filtered_games_count} ván...")
                         def _on_prog(cur, tot):
-                            pct = min(1.0, float(cur) / max(1, tot))
-                            progress_bar.progress(pct, text=f"Đang phân tích ván {cur}/{tot} (Bỏ qua {analyzed_games_count} ván có sẵn)...")
+                            overall_done = analyzed_games_count + cur
+                            pct = min(0.92, float(overall_done) / max(1, total_filtered_games_count) * 0.92)
+                            progress_bar.progress(pct, text=f"Đang phân tích ván {overall_done}/{total_filtered_games_count}...")
 
                         deep_eval_res = parallel_batch_analyze_games(
                             filtered_games,
@@ -1484,13 +1486,14 @@ elif active_page in ["Profile", "Performance"]:
                             progress_callback=_on_prog,
                             existing_evaluations=st.session_state.cached_move_evaluations
                         )
-                        progress_bar.progress(1.0, text="Hoàn tất phân tích chuyên sâu!")
+                        progress_bar.progress(0.95, text="⚡ Đang tính toán Hồ sơ Phong cách & Cấu trúc Tốt...")
                         st.session_state.cached_move_evaluations = deep_eval_res.get("move_evaluations", [])
                         st.session_state.cached_deep_profile = generate_deep_opponent_profile(
                             filtered_games,
                             stats,
                             move_evaluations=st.session_state.cached_move_evaluations
                         )
+                        progress_bar.progress(1.0, text="✅ Hoàn tất 100%! Đang tải giao diện mới...")
                         st.rerun()
             else:
                 st.caption(f"✅ Đã phân tích toàn diện 100% dữ liệu ({total_filtered_games_count}/{total_filtered_games_count} ván đấu)")
@@ -1570,7 +1573,7 @@ elif active_page in ["Profile", "Performance"]:
                     wh2.markdown("**Ván**")
                     wh3.markdown("**W/D/L**")
                     wh4.markdown("**Raw %**")
-                    wh5.markdown("**Bayes Adj (Độ tin cậy)**")
+                    wh5.markdown("**Độ tin cậy**", help="Chỉ số hiệu chỉnh Bayesian: Triệt tiêu sai lệch khi số lượng ván đấu còn ít (kéo điểm về mức phong độ trung bình). Phần trăm trong ngoặc là độ lệch (+/-) so với trung bình, kèm nhãn đánh giá độ tin cậy.")
 
                     st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
@@ -1613,7 +1616,7 @@ elif active_page in ["Profile", "Performance"]:
                     bh2.markdown("**Ván**")
                     bh3.markdown("**W/D/L**")
                     bh4.markdown("**Raw %**")
-                    bh5.markdown("**Bayes Adj (Độ tin cậy)**")
+                    bh5.markdown("**Độ tin cậy**", help="Chỉ số hiệu chỉnh Bayesian: Triệt tiêu sai lệch khi số lượng ván đấu còn ít (kéo điểm về mức phong độ trung bình). Phần trăm trong ngoặc là độ lệch (+/-) so với trung bình, kèm nhãn đánh giá độ tin cậy.")
 
                     st.markdown("<hr style='margin:4px 0 8px 0; border:0; border-top:1px solid #E2E8F0;'>", unsafe_allow_html=True)
 
@@ -1856,10 +1859,14 @@ elif active_page == "AIAssistant":
                         use_container_width=True,
                         key="ai_deep_scan_btn"
                     ):
-                        progress_bar = st.progress(0, text="Đang khởi chạy Stockfish đa luồng...")
+                        prog_slot = st.empty()
+                        init_pct = float(analyzed_games_count) / max(1, total_filtered_games_count) * 0.92
+                        progress_bar = prog_slot.progress(init_pct, text=f"Đang phân tích {analyzed_games_count}/{total_filtered_games_count} ván...")
+                        
                         def _on_ai_prog(cur, tot):
-                            pct = min(1.0, float(cur) / max(1, tot))
-                            progress_bar.progress(pct, text=f"Đang phân tích ván {cur}/{tot} (Bỏ qua {analyzed_games_count} ván có sẵn)...")
+                            overall_done = analyzed_games_count + cur
+                            pct = min(0.92, float(overall_done) / max(1, total_filtered_games_count) * 0.92)
+                            progress_bar.progress(pct, text=f"Đang phân tích ván {overall_done}/{total_filtered_games_count}...")
 
                         deep_eval_res = parallel_batch_analyze_games(
                             filtered_games,
@@ -1868,13 +1875,14 @@ elif active_page == "AIAssistant":
                             progress_callback=_on_ai_prog,
                             existing_evaluations=st.session_state.cached_move_evaluations
                         )
-                        progress_bar.progress(1.0, text="Hoàn tất phân tích chuyên sâu!")
+                        progress_bar.progress(0.95, text="⚡ Đang cập nhật Hồ sơ Đối thủ & Phong cách chơi...")
                         st.session_state.cached_move_evaluations = deep_eval_res.get("move_evaluations", [])
                         st.session_state.cached_deep_profile = generate_deep_opponent_profile(
                             filtered_games,
                             stats,
                             move_evaluations=st.session_state.cached_move_evaluations
                         )
+                        progress_bar.progress(1.0, text="✅ Hoàn tất 100%! Đang làm mới dữ liệu...")
                         st.rerun()
 
         # Top Bar: Opponent Info + Clear Chat + Model Selector
@@ -1954,6 +1962,18 @@ elif active_page == "AIAssistant":
                     st.markdown(active_prompt)
 
                 with st.chat_message("assistant", avatar="🤖"):
+                    msg_slot = st.empty()
+                    msg_slot.markdown(
+                        """
+                        <div class='ai-thinking-indicator'>
+                            <span>🤖 AI đang suy nghĩ</span>
+                            <span class='ai-thinking-dots'>
+                                <span></span><span></span><span></span>
+                            </span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
                     context_data = build_opponent_ai_context(
                         deep_profile=deep_profile,
                         stats=stats,
@@ -1974,7 +1994,7 @@ elif active_page == "AIAssistant":
                         fen_map_black=fen_b,
                         selected_player=selected_player
                     )
-                    full_response = st.write_stream(stream_gen)
+                    full_response = msg_slot.write_stream(stream_gen)
                     st.session_state.ai_chat_history.append({"role": "assistant", "content": full_response})
 
             st.rerun()
@@ -2175,14 +2195,14 @@ elif active_page == "Import":
 
                         # Step 2: Parse
                         tracker.set_step_running("parse", "Đang bóc tách PGN...")
-                        all_games = cached_parse_pgn(pgn_bytes)
+                        all_games = cached_parse_pgn(pgn_bytes)[:max_games]
                         primary_player = detect_primary_player(all_games)
                         target_player = primary_player if primary_player else online_user
-                        tracker.set_step_done("parse", f"Đã nhận diện {len(all_games)} ván đấu (Kỳ thủ: {target_player})")
+                        tracker.set_step_done("parse", f"Đã nhận diện {len(all_games)} ván đấu hợp lệ (Kỳ thủ: {target_player})")
 
                         # Step 3: Tree
                         tracker.set_step_running("tree", "Đang tính toán các biến và thống kê...")
-                        filtered_games = filter_games_by_player(all_games, target_player)
+                        filtered_games = filter_games_by_player(all_games, target_player)[:max_games]
                         stats = calculate_game_stats(filtered_games)
                         _, fen_map_all = build_opening_tree(filtered_games, color="all")
                         _, fen_map_white = build_opening_tree(filtered_games, color="white")

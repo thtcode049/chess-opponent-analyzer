@@ -217,5 +217,21 @@ def test_parallel_batch_analyze_incremental_skip():
     assert game0_evals[0]["move_san"] == "e4"
 
 
+def test_parallel_batch_analyze_empty_and_short_games():
+    from src.engine.evaluator import parallel_batch_analyze_games
+    games = [
+        {"white": "A", "black": "B", "result": "1-0", "player_color": "white", "moves": ["e4", "e5", "Nf3", "Nc6"]},
+        {"white": "A", "black": "C", "result": "1-0", "player_color": "white", "moves": []}, # 0 moves (aborted)
+        {"white": "A", "black": "D", "result": "0-1", "player_color": "white", "moves": ["e4"]}, # 1 move only
+    ]
+    res = parallel_batch_analyze_games(games, max_games=3)
+    assert res["available"] is True
+    analyzed_indices = set(e["game_index"] for e in res["move_evaluations"] if "game_index" in e)
+    # All 3 game indices (0, 1, 2) must be present so analyzed_count == total_games
+    assert len(analyzed_indices) == 3
+    assert analyzed_indices == {0, 1, 2}
+
+
+
 
 

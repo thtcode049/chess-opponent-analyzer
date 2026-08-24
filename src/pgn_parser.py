@@ -255,7 +255,7 @@ def parse_pgn(
 
 
 def _read_games_from_stream(stream) -> List[Dict[str, Any]]:
-    """Đọc từng game từ stream, bỏ qua ván lỗi mà không làm sập ứng dụng."""
+    """Đọc từng game từ stream, tự động loại bỏ các ván bị hủy / ván rỗng (< 2 nước đi) và ván lỗi."""
     games = []
     while True:
         try:
@@ -263,7 +263,9 @@ def _read_games_from_stream(stream) -> List[Dict[str, Any]]:
             if game is None:
                 break
             parsed_game = parse_single_game(game)
-            games.append(parsed_game)
+            # Tự động loại bỏ các ván bị hủy / ván rỗng (dưới 2 nước đi)
+            if len(parsed_game.get("moves", [])) >= 2:
+                games.append(parsed_game)
         except Exception:
             continue
     return games

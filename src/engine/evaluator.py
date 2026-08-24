@@ -8,6 +8,7 @@ Chức năng:
 """
 
 import os
+import time
 from typing import List, Dict, Any, Optional, Tuple
 import concurrent.futures
 import chess
@@ -208,24 +209,59 @@ def extract_all_embedded_evaluations(games: List[Dict[str, Any]]) -> Dict[str, A
 
 def _worker_analyze_game_subset(
     indexed_games: List[Tuple[int, Dict[str, Any]]],
-    depth: int = 8
+    depth: int = 6,
+    result_queue: Optional[Any] = None
 ) -> List[Tuple[int, Dict[str, Any], List[Dict[str, Any]]]]:
     """
-    Hàm worker chạy độc lập trên từng luồng/tiến trình riêng biệt với 1 instance Stockfish riêng.
+    Hàm worker chạy độc lập trên từng luồng/tiến trình riêng biệt với 1 instance Stockfish duy nhất cho cả cụm ván đấu.
     """
     engine = StockfishEngine(depth=depth)
     if not engine.is_available():
-        return [(idx, g, []) for idx, g in indexed_games]
+        fallback = []
+        for idx, g in indexed_games:
+            item = (idx, g, [{
+                "game_index": idx,
+                "game_opening": g.get("opening", "Unknown"),
+                "site": g.get("site", ""),
+                "is_empty": True,
+                "available": False,
+                "ply": 0,
+                "cpl": None
+            }])
+            fallback.append(item)
+            if result_queue is not None:
+                try:
+                    result_queue.put(item)
+                except Exception:
+                    pass
+        return fallback
 
     results = []
     try:
         for idx, g in indexed_games:
             evals = analyze_game_moves(g, engine, depth=depth)
-            for e in evals:
-                e["game_index"] = idx
-                e["game_opening"] = g.get("opening", "Unknown")
-                e["site"] = g.get("site", "")
-            results.append((idx, g, evals))
+            if not evals:
+                evals = [{
+                    "game_index": idx,
+                    "game_opening": g.get("opening", "Unknown"),
+                    "site": g.get("site", ""),
+                    "is_empty": True,
+                    "available": False,
+                    "ply": 0,
+                    "cpl": None
+                }]
+            else:
+                for e in evals:
+                    e["game_index"] = idx
+                    e["game_opening"] = g.get("opening", "Unknown")
+                    e["site"] = g.get("site", "")
+            item = (idx, g, evals)
+            results.append(item)
+            if result_queue is not None:
+                try:
+                    result_queue.put(item)
+                except Exception:
+                    pass
     finally:
         engine.close()
 
@@ -235,15 +271,17 @@ def _worker_analyze_game_subset(
 def parallel_batch_analyze_games(
     games: List[Dict[str, Any]],
     max_workers: Optional[int] = None,
-    depth: int = 8,
+    depth: int = 6,
     max_games: Optional[int] = 20,
     progress_callback: Optional[Any] = None,
     existing_evaluations: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
     """
-    Phân tích Batch song song đa luồng (Multi-threading / Multiprocessing) bằng concurrent.futures.
-    Hỗ trợ Incremental Analysis: Bỏ qua các ván đã phân tích sẵn (từ existing_evaluations) để chỉ chạy trên các ván mới.
+    Phân tích Batch song song đa luồng theo cụm (Chunk-based Multi-threading qua concurrent.futures).
+    Mỗi worker mở đúng 1 Stockfish instance để phân tích cả cụm, và gửi tiến trình từng ván về Main Thread theo thời gian thực.
     """
+    import queue
+
     limit = max_games if max_games is not None else len(games or [])
     all_target_games = (games or [])[:limit]
 
@@ -254,7 +292,6 @@ def parallel_batch_analyze_games(
     new_evaluations: List[Dict[str, Any]] = []
     
     if selected_games:
-        # Tính toán số lượng workers tối ưu theo số nhân CPU
         cpu_cores = os.cpu_count() or 4
         num_workers = max_workers or min(max(1, cpu_cores - 1), 8, len(selected_games))
 
@@ -264,36 +301,52 @@ def parallel_batch_analyze_games(
             chunks[i % num_workers].append(item)
         chunks = [c for c in chunks if c]
 
+        result_q: queue.Queue = queue.Queue()
         completed_games = 0
         total_games_to_analyze = len(selected_games)
 
-        # Chạy song song qua ThreadPoolExecutor (mỗi thread sở hữu 1 tiến trình stockfish.exe độc lập)
+        if progress_callback:
+            try:
+                progress_callback(0, total_games_to_analyze)
+            except Exception:
+                pass
+
+        all_worker_results = []
+
+        # Chạy song song qua ThreadPoolExecutor (mỗi thread mở 1 Stockfish duy nhất phân tích hết cả chunk)
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(chunks)) as executor:
-            futures = [executor.submit(_worker_analyze_game_subset, chunk, depth) for chunk in chunks]
+            futures = [executor.submit(_worker_analyze_game_subset, chunk, depth, result_q) for chunk in chunks]
             
-            all_worker_results = []
-            for future in concurrent.futures.as_completed(futures):
+            while completed_games < total_games_to_analyze:
                 try:
-                    res = future.result()
-                    all_worker_results.extend(res)
-                    completed_games += len(res)
+                    item = result_q.get(timeout=0.02)
+                    all_worker_results.append(item)
+                    completed_games += 1
                     if progress_callback:
                         try:
                             progress_callback(completed_games, total_games_to_analyze)
+                            time.sleep(0.005)
                         except Exception:
                             pass
-                except Exception:
-                    pass
+                except queue.Empty:
+                    if all(f.done() for f in futures) and result_q.empty():
+                        break
+
+            while not result_q.empty():
+                try:
+                    all_worker_results.append(result_q.get_nowait())
+                except queue.Empty:
+                    break
 
         # Sắp xếp lại theo đúng thứ tự game_index ban đầu
         all_worker_results.sort(key=lambda x: x[0])
 
         for idx, g, evals in all_worker_results:
             if evals:
-                cpls = [e["cpl"] for e in evals if "cpl" in e]
+                cpls = [e["cpl"] for e in evals if e.get("cpl") is not None]
                 game_acpl = round(sum(cpls) / len(cpls), 1) if cpls else None
                 g["game_acpl"] = game_acpl
-                g["analyzed_moves"] = len(evals)
+                g["analyzed_moves"] = len([e for e in evals if e.get("available")])
                 new_evaluations.extend(evals)
             else:
                 g.setdefault("game_acpl", None)
@@ -324,23 +377,23 @@ def parallel_batch_analyze_games(
     for idx, ev_list in sorted(evals_by_game.items()):
         if idx < len(games or []):
             g = games[idx]
-            cpls = [e["cpl"] for e in ev_list if "cpl" in e]
+            cpls = [e["cpl"] for e in ev_list if e.get("cpl") is not None]
             game_acpl = round(sum(cpls) / len(cpls), 1) if cpls else None
             g["game_acpl"] = game_acpl
-            g["analyzed_moves"] = len(ev_list)
+            g["analyzed_moves"] = len([e for e in ev_list if e.get("available")])
 
             game_summaries.append({
                 "game_index": idx,
                 "opening": g.get("opening", "Unknown"),
                 "result": g.get("result", "*"),
                 "player_color": g.get("player_color", "white"),
-                "moves_analyzed": len(ev_list),
+                "moves_analyzed": len([e for e in ev_list if e.get("available")]),
                 "game_acpl": game_acpl,
                 "avg_cpl": game_acpl if game_acpl is not None else 0.0,
                 "site": g.get("site", "")
             })
 
-    all_cpls = [e["cpl"] for e in combined_evaluations if "cpl" in e]
+    all_cpls = [e["cpl"] for e in combined_evaluations if e.get("cpl") is not None]
     overall_acpl = round(sum(all_cpls) / len(all_cpls), 1) if all_cpls else None
 
     return {

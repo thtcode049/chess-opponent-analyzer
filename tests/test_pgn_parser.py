@@ -103,3 +103,42 @@ random text 123456 !!!
 def test_non_existent_file():
     with pytest.raises(FileNotFoundError):
         parse_pgn("non_existent_file_123.pgn")
+
+
+def test_auto_clean_aborted_games_filter():
+    mixed_pgn = """
+[Event "Real Game 1"]
+[White "Player1"]
+[Black "Player2"]
+[Result "1-0"]
+
+1. e4 e5 2. Nf3 Nc6 1-0
+
+[Event "Aborted Game (0 moves)"]
+[White "Player1"]
+[Black "Player3"]
+[Result "*"]
+
+*
+
+[Event "Early Resignation (1 move only)"]
+[White "Player1"]
+[Black "Player4"]
+[Result "1-0"]
+
+1. e4 1-0
+
+[Event "Real Game 2"]
+[White "Player5"]
+[Black "Player1"]
+[Result "0-1"]
+
+1. d4 d5 2. c4 e6 0-1
+"""
+    stream = io.StringIO(mixed_pgn)
+    games = parse_pgn(stream)
+    # Must automatically discard the 2 aborted / 1-move games and only keep the 2 valid games
+    assert len(games) == 2
+    assert games[0]["white"] == "Player1"
+    assert games[1]["white"] == "Player5"
+
