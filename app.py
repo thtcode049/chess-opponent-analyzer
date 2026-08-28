@@ -724,19 +724,86 @@ def render_analysis_section(fen_map: dict, selected_player: str):
                         b_name = sg.get("black", "Black")
                         b_elo = f"({sg['black_elo']})" if sg.get("black_elo") and sg["black_elo"] > 0 else ""
                         res = sg.get("result", "*")
-                        site_url = sg.get("site", "")
-                        has_link = site_url.startswith("http://") or site_url.startswith("https://")
                         game_label = f"{w_name}{w_elo} {res} {b_name}{b_elo}"
 
+                        # Trích xuất URL xem trực tiếp trên nền tảng (Lichess / Chess.com)
+                        site_url = sg.get("link", "") or (sg.get("site", "") if str(sg.get("site", "")).startswith("http") else "")
+                        has_link = bool(site_url and (site_url.startswith("http://") or site_url.startswith("https://")))
+
+                        # Trích xuất các thông tin cơ bản của ván đấu (Date, Round, Event, Site)
+                        raw_date = str(sg.get("date", "")).strip()
+                        raw_event = str(sg.get("event", "")).strip()
+                        raw_site = str(sg.get("site", "")).strip()
+                        raw_round = str(sg.get("round", "")).strip()
+
+                        # Chuẩn hóa hiển thị, loại bỏ các event mặc định trực tuyến như Live Chess
+                        generic_events = {
+                            "live chess", "live chess match", "chess.com", "let's play!", 
+                            "unknown event", "unknown", "?", "rated blitz game", "rated rapid game", 
+                            "rated bullet game", "rated classical game", "rated correspondence game"
+                        }
+                        raw_event_lower = raw_event.lower().strip()
+                        is_generic_event = (
+                            not raw_event_lower or 
+                            raw_event_lower in generic_events or 
+                            raw_event_lower.startswith("live chess") or 
+                            raw_event_lower.startswith("rated ")
+                        )
+                        event_display = "" if is_generic_event else raw_event
+
+                        date_display = raw_date if raw_date and raw_date not in ["????.??.??", "Unknown Date", "?"] else ""
+                        round_display = f"Vòng {raw_round}" if raw_round and raw_round not in ["?", "-", "0"] else ""
+                        site_display = raw_site if raw_site and raw_site not in ["Unknown Site", "?", "Chess.com"] and not raw_site.startswith("http") else ""
+
+                        platform_name = "Lichess" if "lichess.org" in site_url else ("Chess.com" if "chess.com" in site_url else "Nền tảng")
+
+                        if has_link:
+                            # Nạp từ Lichess / Chess.com: hiển thị ngày
+                            online_suffix = f" - {date_display}" if date_display else ""
+                            game_btn_help = f"Xem ván đấu này{online_suffix}"
+                            link_btn_help = f"Mở ván đấu trên {platform_name}{online_suffix}"
+                        else:
+                            # Nạp từ PGN: chỉ hiển thị thông điệp ngắn gọn
+                            game_btn_help = "Xem ván đấu"
+                            popover_btn_help = "Xem thông tin ván đấu này"
+
                         with c_game:
-                            if st.button(game_label, icon=":material/visibility:", key=f"tree_game_{san}_{len(st.session_state.move_history)}", use_container_width=True, help="Xem ván đấu duy nhất này"):
+                            if st.button(game_label, icon=":material/visibility:", key=f"tree_game_{san}_{len(st.session_state.move_history)}", use_container_width=True, help=game_btn_help):
                                 load_single_game_onto_board(sg)
 
                         with c_link:
                             if has_link:
-                                st.link_button("↗", url=site_url, help="Mở ván đấu nguồn", use_container_width=True)
+                                st.link_button(
+                                    "↗",
+                                    url=site_url,
+                                    help=link_btn_help,
+                                    use_container_width=True
+                                )
                             else:
-                                st.markdown("<div style='padding-top:4px;'></div>", unsafe_allow_html=True)
+                                with st.popover("", icon=":material/info:", help=popover_btn_help, use_container_width=True):
+                                    time_row = f"<div style='color:#64748B;'>Thời gian:</div><div>{date_display}</div>" if date_display else ""
+                                    round_row = f"<div style='color:#64748B;'>Vòng đấu:</div><div>{round_display}</div>" if round_display else ""
+                                    event_row = f"<div style='color:#64748B;'>Giải đấu:</div><div>{event_display}</div>" if event_display else ""
+                                    site_row = f"<div style='color:#64748B;'>Địa điểm:</div><div>{site_display}</div>" if site_display else ""
+                                    st.markdown(f"""
+                                    <div style='font-size:13px; min-width:260px; color:#1E293B;'>
+                                        <div style='font-weight:700; font-size:14px; margin-bottom:8px; border-bottom:1px solid #E2E8F0; padding-bottom:6px;'>
+                                            Thông Tin Ván Đấu
+                                        </div>
+                                        <div style='display:grid; grid-template-columns: 75px 1fr; gap: 6px; font-size:12.5px; line-height:1.5;'>
+                                            <div style='color:#64748B;'>Trắng:</div>
+                                            <div><b>{w_name}</b> {w_elo}</div>
+                                            <div style='color:#64748B;'>Đen:</div>
+                                            <div><b>{b_name}</b> {b_elo}</div>
+                                            <div style='color:#64748B;'>Kết quả:</div>
+                                            <div><b>{res}</b></div>
+                                            {time_row}
+                                            {round_row}
+                                            {event_row}
+                                            {site_row}
+                                        </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
                     else:
                         c1, c2, c3, c4, c5 = st.columns([1.5, 1.0, 1.2, 3.8, 1.2])
 

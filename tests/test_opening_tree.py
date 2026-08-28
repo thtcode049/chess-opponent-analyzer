@@ -54,6 +54,10 @@ def test_single_game_info_extraction():
             "black_elo": 1900,
             "result": "1-0",
             "site": "https://lichess.org/test1234",
+            "link": "https://lichess.org/test1234",
+            "event": "Rated Blitz match",
+            "date": "2024.01.01",
+            "round": "1",
             "moves": ["e4", "e5", "Nf3"],
             "player_color": "white",
             "opening": "King's Knight Opening",
@@ -70,6 +74,36 @@ def test_single_game_info_extraction():
     assert cont["single_game_info"]["white"] == "PlayerA"
     assert cont["single_game_info"]["black"] == "PlayerB"
     assert cont["single_game_info"]["result"] == "1-0"
+    assert cont["single_game_info"]["link"] == "https://lichess.org/test1234"
+    assert cont["single_game_info"]["event"] == "Rated Blitz match"
+    assert cont["single_game_info"]["date"] == "2024.01.01"
+    assert cont["single_game_info"]["round"] == "1"
+
+
+def test_single_game_info_pgn_tournament_fields():
+    dummy_games = [
+        {
+            "white": "Nepo",
+            "white_elo": 2795,
+            "black": "Ding",
+            "black_elo": 2788,
+            "result": "1/2-1/2",
+            "site": "Astana KAZ",
+            "event": "World Championship",
+            "date": "2023.04.09",
+            "round": "1",
+            "moves": ["e4", "e5", "Nf3"],
+            "player_color": "white",
+        }
+    ]
+    root, fen_map = build_opening_tree(dummy_games)
+    details = get_position_details(fen_map, chess.Board().fen())
+    sg = details["continuations"][0]["single_game_info"]
+    assert sg["event"] == "World Championship"
+    assert sg["site"] == "Astana KAZ"
+    assert sg["date"] == "2023.04.09"
+    assert sg["round"] == "1"
+    assert sg["link"] == ""
 
 
 def test_find_common_move_prefix():

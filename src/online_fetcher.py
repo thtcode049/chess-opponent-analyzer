@@ -166,7 +166,11 @@ def fetch_chesscom_games(
                                 is_game_rated = g.get("rated", True)
                                 if is_game_rated != rated:
                                     continue
-                            pgn_list.append(g["pgn"])
+                            raw_pgn = g["pgn"]
+                            game_url = g.get("url", "").strip()
+                            if game_url and "[Link " not in raw_pgn:
+                                raw_pgn = f'[Link "{game_url}"]\n' + raw_pgn
+                            pgn_list.append(raw_pgn)
                             games_collected += 1
                             if games_collected >= max_games:
                                 break

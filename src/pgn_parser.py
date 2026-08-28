@@ -183,11 +183,31 @@ def parse_single_game(game: chess.pgn.Game) -> Dict[str, Any]:
         opening = raw_op
         eco = raw_eco
 
+    raw_event = headers.get("Event", "Unknown Event").strip()
+    raw_site = headers.get("Site", "Unknown Site").strip()
+    raw_date = headers.get("Date", "????.??.??").strip()
+    raw_round = headers.get("Round", "?").strip()
+    raw_link = headers.get("Link", "").strip()
+    raw_url = headers.get("URL", "").strip()
+    raw_time = headers.get("Time", "").strip() or headers.get("UTCTime", "").strip()
+    raw_time_control = headers.get("TimeControl", "").strip()
+
+    game_url = ""
+    if raw_link.startswith("http://") or raw_link.startswith("https://"):
+        game_url = raw_link
+    elif raw_url.startswith("http://") or raw_url.startswith("https://"):
+        game_url = raw_url
+    elif raw_site.startswith("http://") or raw_site.startswith("https://"):
+        game_url = raw_site
+
     return {
-        "event": headers.get("Event", "Unknown Event"),
-        "site": headers.get("Site", "Unknown Site"),
-        "date": headers.get("Date", "????.??.??"),
-        "round": headers.get("Round", "?"),
+        "event": raw_event,
+        "site": raw_site,
+        "date": raw_date,
+        "round": raw_round,
+        "link": game_url,
+        "time": raw_time,
+        "time_control": raw_time_control,
         "white": headers.get("White", "Unknown White").strip(),
         "black": headers.get("Black", "Unknown Black").strip(),
         "result": headers.get("Result", "*"),

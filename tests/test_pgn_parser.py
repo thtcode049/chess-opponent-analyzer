@@ -142,3 +142,70 @@ def test_auto_clean_aborted_games_filter():
     assert games[0]["white"] == "Player1"
     assert games[1]["white"] == "Player5"
 
+
+def test_pgn_metadata_and_link_extraction():
+    pgn_text = """
+[Event "FIDE World Championship 2023"]
+[Site "Astana KAZ"]
+[Date "2023.04.09"]
+[Round "1"]
+[White "Nepomniachtchi, Ian"]
+[Black "Ding, Liren"]
+[Result "1/2-1/2"]
+[TimeControl "120/40:60/20:15+30"]
+[Time "15:00:00"]
+
+1. e4 e5 2. Nf3 Nc6 1/2-1/2
+
+[Event "Live Chess"]
+[Site "Chess.com"]
+[Date "2024.01.15"]
+[Round "-"]
+[White "ChesscomPlayerA"]
+[Black "ChesscomPlayerB"]
+[Result "1-0"]
+[Link "https://www.chess.com/game/live/987654321"]
+[TimeControl "180+2"]
+
+1. d4 d5 2. c4 c6 1-0
+
+[Event "Rated Blitz game"]
+[Site "https://lichess.org/AbCdEfGh"]
+[Date "2024.02.20"]
+[Round "-"]
+[White "LichessUser1"]
+[Black "LichessUser2"]
+[Result "0-1"]
+
+1. e4 c5 2. Nf3 d6 0-1
+"""
+    stream = io.StringIO(pgn_text)
+    games = parse_pgn(stream)
+    assert len(games) == 3
+
+    # Game 1: Tournament OTB PGN
+    g1 = games[0]
+    assert g1["event"] == "FIDE World Championship 2023"
+    assert g1["site"] == "Astana KAZ"
+    assert g1["date"] == "2023.04.09"
+    assert g1["round"] == "1"
+    assert g1["time"] == "15:00:00"
+    assert g1["time_control"] == "120/40:60/20:15+30"
+    assert g1["link"] == ""
+
+    # Game 2: Chess.com PGN with Link header
+    g2 = games[1]
+    assert g2["event"] == "Live Chess"
+    assert g2["site"] == "Chess.com"
+    assert g2["date"] == "2024.01.15"
+    assert g2["link"] == "https://www.chess.com/game/live/987654321"
+    assert g2["time_control"] == "180+2"
+
+    # Game 3: Lichess PGN with Site as URL
+    g3 = games[2]
+    assert g3["event"] == "Rated Blitz game"
+    assert g3["site"] == "https://lichess.org/AbCdEfGh"
+    assert g3["link"] == "https://lichess.org/AbCdEfGh"
+
+
+

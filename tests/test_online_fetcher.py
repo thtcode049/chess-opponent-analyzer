@@ -181,6 +181,36 @@ def test_fetch_chesscom_rated(monkeypatch):
     assert b"Rated Game" not in data_casual
 
 
+def test_fetch_chesscom_url_link_preservation(monkeypatch):
+    import json
+    from unittest.mock import MagicMock
 
+    def mock_urlopen(req, timeout=10):
+        url = req.full_url
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.headers = {}
+        if "archives" in url:
+            mock_resp.read.return_value = json.dumps({
+                "archives": ["https://api.chess.com/pub/player/test/games/2026/08"]
+            }).encode('utf-8')
+        else:
+            mock_resp.read.return_value = json.dumps({
+                "games": [
+                    {
+                        "url": "https://www.chess.com/game/live/123456789",
+                        "pgn": '[Event "Live Chess"]\n[Site "Chess.com"]\n1. e4 e5 1-0',
+                        "time_class": "blitz",
+                        "rated": True
+                    }
+                ]
+            }).encode('utf-8')
+        mock_resp.__enter__.return_value = mock_resp
+        return mock_resp
 
+    monkeypatch.setattr("urllib.request.urlopen", mock_urlopen)
 
+    data, err = fetch_chesscom_games("test_player", max_games=1)
+    assert err is None
+    assert data is not None
+    assert b'[Link "https://www.chess.com/game/live/123456789"]' in data

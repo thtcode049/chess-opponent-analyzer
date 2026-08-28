@@ -170,6 +170,10 @@ def get_position_details(
         single_game_info = None
         if g_count == 1 and child.games:
             g_obj = child.games[0]
+            game_link = g_obj.get("link", "")
+            if not game_link and str(g_obj.get("site", "")).startswith("http"):
+                game_link = g_obj.get("site", "")
+
             single_game_info = {
                 "white": g_obj.get("white", "Unknown White"),
                 "white_elo": g_obj.get("white_elo", 0),
@@ -177,6 +181,12 @@ def get_position_details(
                 "black_elo": g_obj.get("black_elo", 0),
                 "result": g_obj.get("result", "*"),
                 "site": g_obj.get("site", ""),
+                "link": game_link,
+                "event": g_obj.get("event", ""),
+                "date": g_obj.get("date", ""),
+                "round": g_obj.get("round", ""),
+                "time": g_obj.get("time", ""),
+                "time_control": g_obj.get("time_control", ""),
                 "moves": g_obj.get("moves", []),
                 "opening": g_obj.get("opening", ""),
                 "player_color": g_obj.get("player_color", "white"),
