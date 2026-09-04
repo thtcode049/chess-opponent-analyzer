@@ -16,14 +16,16 @@ def generate_local_expert_response(
     stats: Optional[Dict[str, Any]],
     fen_map_white: Optional[Dict[str, Any]] = None,
     fen_map_black: Optional[Dict[str, Any]] = None,
-    selected_player: str = "Đối thủ"
+    selected_player: str = "Kỳ thủ",
+    mode: str = "self"
 ) -> str:
     """
     Phân tích câu hỏi của người dùng và sinh câu trả lời chuyên sâu, có cấu trúc Markdown,
     số liệu chính xác, bảng biểu và lời khuyên chiến thuật từ dữ liệu Profile & Cây Khai cuộc.
+    mode: 'self' (Bản thân / Học viên) hoặc 'opponent' (Đối thủ sắp gặp).
     """
     if not deep_profile or not stats:
-        return "⚠️ Hiện chưa có dữ liệu đối thủ. Vui lòng nạp ván đấu từ trang **Nạp Ván đấu (Import)** để bắt đầu phân tích."
+        return f"⚠️ Hiện chưa có đủ dữ liệu phân tích của kỳ thủ **{selected_player}**. Vui lòng nạp ván đấu từ trang **Nạp Ván đấu** để bắt đầu."
 
     p = prompt.strip().lower()
 
@@ -69,11 +71,17 @@ def generate_local_expert_response(
             lines.append(f"- **Thời điểm hình thành đặc trưng**: Khoảng nước **{s.get('typical_move', 'N/A')}**")
             
             if s.get("delta_vs_baseline", 0) < -5.0:
-                lines.append(f"\n💡 **Lời khuyên tác chiến**: Đây là **điểm yếu đã xác nhận** của đối thủ. Hãy chủ động dẫn dắt thế trận về cấu trúc *{s['name']}* để ép đối thủ rơi vào thế cờ họ xử lý kém.")
+                if mode == "self":
+                    lines.append(f"\n💡 **Khuyến nghị cải thiện**: Đây là **lỗ hổng cần khắc phục**. Bạn/học viên thường xử lý lúng túng ở cấu trúc *{s['name']}*. Cần xem lại các ván thua để học cách điều động quân hợp lý hơn.")
+                else:
+                    lines.append(f"\n💡 **Lời khuyên tác chiến**: Đây là **điểm yếu đã xác nhận** của đối thủ. Hãy chủ động dẫn dắt thế trận về cấu trúc *{s['name']}* để ép đối thủ rơi vào thế cờ họ xử lý kém.")
             elif s.get("delta_vs_baseline", 0) > 5.0:
-                lines.append(f"\n⚠️ **Cảnh báo**: Đây là **thế mạnh sở trường** của đối thủ. Họ xử lý cấu trúc *{s['name']}* rất thành thạo, bạn nên tránh tạo ra cấu trúc này.")
+                if mode == "self":
+                    lines.append(f"\n🟢 **Thế mạnh sở trường**: Bạn/học viên xử lý cấu trúc *{s['name']}* rất thành thạo và đạt điểm số vượt trội. Hãy tiếp tục phát huy!")
+                else:
+                    lines.append(f"\n⚠️ **Cảnh báo**: Đây là **thế mạnh sở trường** của đối thủ. Họ xử lý cấu trúc *{s['name']}* rất thành thạo, bạn nên tránh tạo ra cấu trúc này.")
             else:
-                lines.append(f"\nℹ️ **Nhận định**: Đối thủ thi đấu ở mức ổn định trung bình trên cấu trúc này.")
+                lines.append(f"\nℹ️ **Nhận định**: Kỳ thủ thi đấu ở mức ổn định trung bình trên cấu trúc này.")
             return "\n".join(lines)
 
         # Tổng quan thế mạnh & điểm yếu cấu trúc
@@ -90,12 +98,16 @@ def generate_local_expert_response(
         
         if weak_structs:
             worst_s = sorted(weak_structs, key=lambda x: x.get("adjusted_score_pct", 50))[0]
-            lines.append(f"\n🔴 **Cấu trúc xử lý kém nhất (TỬ HUYỆT)**: **{worst_s['name']}**")
+            badge_title = "Cấu trúc cần rèn luyện nhất" if mode == "self" else "Cấu trúc xử lý kém nhất (TỬ HUYỆT)"
+            lines.append(f"\n🔴 **{badge_title}**: **{worst_s['name']}**")
             lines.append(f"  - Chỉ đạt **{worst_s.get('score_pct', 0)}% score** ({worst_s.get('adjusted_score_pct', 0)}% sau hiệu chỉnh, Delta: `{worst_s.get('delta_vs_baseline', 0)}%`) trên {worst_s['games_count']} ván.")
             lines.append(f"  - Đánh giá: `{worst_s.get('assessment_badge', 'N/A')}` (Nước hình thành: ~nước {worst_s.get('typical_move', 'N/A')}).")
-            lines.append(f"  - 👉 **Kế hoạch khai thác**: Hãy điều hướng ván cờ vào dạng cấu trúc **{worst_s['name']}** này để tạo ưu thế chiến lược.")
+            if mode == "self":
+                lines.append(f"  - 📚 **Lộ trình khắc phục**: Cần luyện tập các bài học định vị Tốt và kiểm soát ô tiền đồn trong cấu trúc **{worst_s['name']}**.")
+            else:
+                lines.append(f"  - 👉 **Kế hoạch khai thác**: Hãy điều hướng ván cờ vào dạng cấu trúc **{worst_s['name']}** này để tạo ưu thế chiến lược.")
 
-        lines.append("\n**Bảng tổng hợp tất cả cấu trúc Tốt đối thủ từng gặp:**\n")
+        lines.append("\n**Bảng tổng hợp tất cả cấu trúc Tốt kỳ thủ từng gặp:**\n")
         lines.append("| Cấu trúc Tốt | Số ván | W/D/L | Score % | Độ tin cậy | Đánh giá |")
         lines.append("| :--- | :---: | :---: | :---: | :---: | :--- |")
         for s in structs[:6]:
@@ -143,20 +155,29 @@ def generate_local_expert_response(
             best_phase = max(valid_accs.items(), key=lambda x: x[1])
             worst_phase = min(valid_accs.items(), key=lambda x: x[1])
             lines.append(f"\n💡 **Nhận định Chuyên sâu**:")
-            lines.append(f"- Đối thủ thi đấu chính xác và vững vàng nhất ở giai đoạn **{best_phase[0]}** ({best_phase[1]}%).")
-            if worst_phase[0] != best_phase[0]:
-                lines.append(f"- Giai đoạn đối thủ dễ mắc sai sót và giảm sút độ chính xác nhiều nhất là **{worst_phase[0]}** ({worst_phase[1]}%).")
-                if worst_phase[0] == "Tàn cuộc":
-                    lines.append("- 👉 **Chiến thuật đề xuất**: Hãy kiên trì đưa trận đấu vào tàn cuộc kỹ thuật, đối thủ thường xử lý thiếu chính xác khi lực lượng tinh giản.")
-                elif worst_phase[0] == "Trung cuộc":
-                    lines.append("- 👉 **Chiến thuật đề xuất**: Hãy làm phức tạp hóa thế trận trung cuộc với nhiều biến chiến thuật, đối thủ có xu hướng lúng túng khi thế trận hỗn loạn.")
-                elif worst_phase[0] == "Khai cuộc":
-                    lines.append("- 👉 **Chiến thuật đề xuất**: Hãy chuẩn bị các nhánh khai cuộc sắc bén và tạo áp lực ngay từ các nước đầu tiên.")
+            if mode == "self":
+                lines.append(f"- Bạn/học viên thi đấu chính xác và vững vàng nhất ở giai đoạn **{best_phase[0]}** ({best_phase[1]}%).")
+                if worst_phase[0] != best_phase[0]:
+                    lines.append(f"- Giai đoạn bạn/học viên dễ mắc sai sót và giảm sút độ chính xác nhiều nhất là **{worst_phase[0]}** ({worst_phase[1]}%).")
+                    if worst_phase[0] == "Tàn cuộc":
+                        lines.append("- 👉 **Giáo án đề xuất**: Hãy kiên trì rèn luyện tàn cuộc kỹ thuật (Endgame Studies), kỹ năng kích hoạt Vua và phối hợp Tốt thông.")
+                    elif worst_phase[0] == "Trung cuộc":
+                        lines.append("- 👉 **Giáo án đề xuất**: Rèn luyện bài tập chiến thuật hỗn loạn (Tactics Puzzles) và rèn luyện kỹ năng quản lý thời gian khi thế trận căng thẳng.")
+                    elif worst_phase[0] == "Khai cuộc":
+                        lines.append("- 👉 **Giáo án đề xuất**: Ôn tập lại lý thuyết khai cuộc và các nước đi nguyên tắc kiểm soát trung tâm.")
+            else:
+                lines.append(f"- Đối thủ thi đấu chính xác và vững vàng nhất ở giai đoạn **{best_phase[0]}** ({best_phase[1]}%).")
+                if worst_phase[0] != best_phase[0]:
+                    lines.append(f"- Giai đoạn đối thủ dễ mắc sai sót và giảm sút độ chính xác nhiều nhất là **{worst_phase[0]}** ({worst_phase[1]}%).")
+                    if worst_phase[0] == "Tàn cuộc":
+                        lines.append("- 👉 **Chiến thuật đề xuất**: Hãy kiên trì đưa trận đấu vào tàn cuộc kỹ thuật, đối thủ thường xử lý thiếu chính xác khi lực lượng tinh giản.")
+                    elif worst_phase[0] == "Trung cuộc":
+                        lines.append("- 👉 **Chiến thuật đề xuất**: Hãy làm phức tạp hóa thế trận trung cuộc với nhiều biến chiến thuật, đối thủ có xu hướng lúng túng khi thế trận hỗn loạn.")
+                    elif worst_phase[0] == "Khai cuộc":
+                        lines.append("- 👉 **Chiến thuật đề xuất**: Hãy chuẩn bị các nhánh khai cuộc sắc bén và tạo áp lực ngay từ các nước đầu tiên.")
 
         return "\n".join(lines)
 
-    # =========================================================================
-    # 3. TRẢ LỜI VỀ PHONG CÁCH THI ĐẤU & CHIẾN THUẬT (STYLE & DYNAMICS)
     # =========================================================================
     # 3. TRẢ LỜI VỀ PHONG CÁCH THI ĐẤU (PLAYING STYLE PROFILE)
     # =========================================================================
@@ -196,9 +217,15 @@ def generate_local_expert_response(
         lines.append(f"- **Xác nhận phong cách Simplifier**: `{'Có (Chuyên gia tàn cuộc)' if style_prof.get('is_simplifier') else 'Không'}`")
 
         if style_prof.get("is_simplifier"):
-            lines.append("\n💡 **Khuyến nghị chiến thuật**: Đối thủ là **Simplifier** có xu hướng chủ động đổi quân sớm đưa về tàn cuộc cân bằng để khai thác kỹ thuật tàn cuộc. Nếu muốn tạo áp lực, bạn nên tránh các thế cờ đối xứng và duy trì thế trận phức tạp ở trung cuộc.")
+            if mode == "self":
+                lines.append("\n💡 **Nhận định**: Bạn/học viên là **Simplifier**, có kỹ năng chuyển tàn và xử lý tàn cuộc tốt. Hãy tiếp tục phát huy nhưng cần cẩn trọng tránh đơn giản hóa vội vàng khi chưa đủ ưu thế.")
+            else:
+                lines.append("\n💡 **Khuyến nghị chiến thuật**: Đối thủ là **Simplifier** có xu hướng chủ động đổi quân sớm đưa về tàn cuộc cân bằng để khai thác kỹ thuật tàn cuộc. Nếu muốn tạo áp lực, bạn nên tránh các thế cờ đối xứng và duy trì thế trận phức tạp ở trung cuộc.")
         else:
-            lines.append("\n💡 **Khuyến nghị chiến thuật**: Đối thủ ít khi chủ động chuyển tàn sớm mà có xu hướng duy trì quân lực để giải quyết ván đấu ở trung cuộc.")
+            if mode == "self":
+                lines.append("\n💡 **Nhận định**: Bạn/học viên có xu hướng giải quyết ván đấu ở trung cuộc và ít khi chủ động chuyển tàn sớm.")
+            else:
+                lines.append("\n💡 **Khuyến nghị chiến thuật**: Đối thủ ít khi chủ động chuyển tàn sớm mà có xu hướng duy trì quân lực để giải quyết ván đấu ở trung cuộc.")
 
         return "\n".join(lines)
 
@@ -209,7 +236,7 @@ def generate_local_expert_response(
         lines = [f"### 📚 Phân tích Danh mục Khai cuộc (Repertoire) của **{selected_player}**\n"]
         
         # Cầm Trắng
-        lines.append("#### ⚪ Khi đối thủ cầm TRẮNG (White Repertoire):")
+        lines.append("#### ⚪ Khi kỳ thủ cầm TRẮNG (White Repertoire):")
         if w_rep:
             top_w = w_rep[0]
             lines.append(f"- **Khai cuộc chơi nhiều nhất**: **{top_w['name']}** ({top_w['games_count']} ván, Score: **{top_w.get('score_pct', 0)}%**, Độ tin cậy: **{top_w.get('adjusted_score_pct', 0)}%**)")
@@ -223,7 +250,7 @@ def generate_local_expert_response(
             lines.append("- Chưa có đủ dữ liệu ván đấu khi cầm Trắng.")
 
         # Cầm Đen
-        lines.append("\n#### ⚫ Khi đối thủ cầm ĐEN (Black Repertoire):")
+        lines.append("\n#### ⚫ Khi kỳ thủ cầm ĐEN (Black Repertoire):")
         if b_rep:
             top_b = b_rep[0]
             lines.append(f"- **Khai cuộc phòng thủ chính**: **{top_b['name']}** ({top_b['games_count']} ván, Score: **{top_b.get('score_pct', 0)}%**, Độ tin cậy: **{top_b.get('adjusted_score_pct', 0)}%**)")
@@ -247,9 +274,15 @@ def generate_local_expert_response(
 
         # 1. Điểm yếu màu quân
         if w_score - b_score >= 10.0:
-            lines.append(f"1. ♟ **Lệch hiệu suất màu quân**: Đối thủ thi đấu **kém hơn rõ rệt khi cầm ĐEN** ({b_score}% so với {w_score}% khi cầm Trắng). Hãy tận dụng tối đa khi bạn được cầm Trắng để tấn công dồn dập.")
+            if mode == "self":
+                lines.append(f"1. ♟ **Lệch hiệu suất màu quân**: Bạn/học viên thi đấu **kém hơn rõ rệt khi cầm ĐEN** ({b_score}% so với {w_score}% khi cầm Trắng). Cần gia cố thêm các phương án phòng thủ vững chắc khi cầm quân Đen.")
+            else:
+                lines.append(f"1. ♟ **Lệch hiệu suất màu quân**: Đối thủ thi đấu **kém hơn rõ rệt khi cầm ĐEN** ({b_score}% so với {w_score}% khi cầm Trắng). Hãy tận dụng tối đa khi bạn được cầm Trắng để tấn công dồn dập.")
         elif b_score - w_score >= 10.0:
-            lines.append(f"1. ♟ **Lệch hiệu suất màu quân**: Đối thủ thi đấu **kém hơn khi cầm TRẮNG** ({w_score}% so với {b_score}% khi cầm Đen).")
+            if mode == "self":
+                lines.append(f"1. ♟ **Lệch hiệu suất màu quân**: Bạn/học viên thi đấu **kém hơn khi cầm TRẮNG** ({w_score}% so với {b_score}% khi cầm Đen). Cần chủ động hơn trong việc tận dụng lợi thế đi trước.")
+            else:
+                lines.append(f"1. ♟ **Lệch hiệu suất màu quân**: Đối thủ thi đấu **kém hơn khi cầm TRẮNG** ({w_score}% so với {b_score}% khi cầm Đen).")
 
         # 2. Điểm yếu cấu trúc Tốt
         weak_structs = [s for s in structs if s.get("delta_vs_baseline", 0) < 0]

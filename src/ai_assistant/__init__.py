@@ -13,6 +13,7 @@ from src.ai_assistant.gemini_client import (
 )
 from src.ai_assistant.local_expert import generate_local_expert_response
 from src.ai_assistant.config import get_server_gemini_api_key
+from src.ai_assistant.briefing import generate_initial_strategic_briefing, get_followup_prompts
 
 __all__ = [
     "build_opponent_ai_context",
@@ -20,6 +21,8 @@ __all__ = [
     "stream_gemini_response",
     "generate_local_expert_response",
     "get_server_gemini_api_key",
+    "generate_initial_strategic_briefing",
+    "get_followup_prompts",
     "AVAILABLE_MODELS",
     "GEMINI_MODELS"
 ]

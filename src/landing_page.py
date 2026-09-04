@@ -213,7 +213,7 @@ def render_landing_page(on_start_analysis):
     st.markdown("""
     <div class="landing-header">
         <div class="landing-brand">
-            <span style="font-size:22px;">♟</span> Chess Opponent Analyzer
+            <span style="font-size:22px;">♟</span> Chess Player Analyzer
         </div>
         <div class="landing-nav-links">
             <a href="#sec-features">Tính năng</a>
@@ -229,9 +229,9 @@ def render_landing_page(on_start_analysis):
     with col_hero_text:
         st.markdown("""
         <div style="padding-top:10px;">
-            <div class="hero-tagline">HỆ THỐNG PHÂN TÍCH ĐỐI THỦ CỜ VUA CHUYÊN SÂU</div>
-            <div class="hero-headline">Thấu hiểu điểm yếu đối thủ.<br>Làm chủ thế trận ngay từ khai cuộc.</div>
-            <div class="hero-desc">Biến hàng trăm ván đấu PGN thành cây khai cuộc trực quan, phát hiện thói quen chơi cờ và xây dựng kế hoạch tác chiến chính xác.</div>
+            <div class="hero-tagline">NỀN TẢNG PHÂN TÍCH & HUẤN LUYỆN CỜ VUA THÔNG MINH</div>
+            <div class="hero-headline">Thấu hiểu phong độ kỳ thủ.<br>Rèn luyện bản thân & Khắc chế đối thủ.</div>
+            <div class="hero-desc">Biến dữ liệu ván đấu PGN thành cây khai cuộc trực quan, đánh giá độ chính xác từng giai đoạn và nhận định chiến lược cùng Đại kiện tướng AI.</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -312,15 +312,15 @@ def render_landing_page(on_start_analysis):
         <div class="landing-card">
             <div class="card-icon">{profile_icon}</div>
             <div class="card-title">Hồ Sơ Phong Cách & Thói Quen</div>
-            <div class="card-desc">Tự động nhận diện nước đi ưa thích, phản ứng quen thuộc trước 1.e4/1.d4 và xu hướng chiến thuật của đối thủ.</div>
+            <div class="card-desc">Tự động nhận diện nước đi ưa thích, phản ứng quen thuộc trước 1.e4/1.d4 và xu hướng chiến thuật của kỳ thủ.</div>
         </div>
         """, unsafe_allow_html=True)
     with f4:
         st.markdown(f"""
         <div class="landing-card">
             <div class="card-icon">{prep_icon}</div>
-            <div class="card-title">Kế Hoạch Chuẩn Bị Trận Đấu</div>
-            <div class="card-desc">Gợi ý biến cờ nên chơi, điểm yếu cần khai thác và vũ khí bất ngờ để đạt lợi thế tối đa.</div>
+            <div class="card-title">Trợ Lí AI & Kế Hoạch Chiến Lược</div>
+            <div class="card-desc">Bản tóm tắt suy luận mở đầu và đàm thoại cùng Đại kiện tướng AI để lập giáo án hoặc kế hoạch thi đấu.</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -338,7 +338,7 @@ def render_landing_page(on_start_analysis):
         <div class="pipeline-arrow">➔</div>
         <div class="pipeline-step">PLAYER INSIGHTS</div>
         <div class="pipeline-arrow">➔</div>
-        <div class="pipeline-step" style="background:#e0e7ff; border-color:#818cf8; color:#3730a3;">MATCH PREPARATION</div>
+        <div class="pipeline-step" style="background:#e0e7ff; border-color:#818cf8; color:#3730a3;">AI STRATEGIC COACHING</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -366,13 +366,13 @@ def render_landing_page(on_start_analysis):
         st.markdown("""
         <div class="landing-card" style="border-left:4px solid #4f46e5;">
             <div style="font-size:12px; font-weight:700; color:#4f46e5; text-transform:uppercase; margin-bottom:8px;">Nhận định Tự động</div>
-            <div style="font-size:14px; color:#1e293b; font-weight:600; margin-bottom:6px;">"Opponent frequently plays this opening."</div>
+            <div style="font-size:14px; color:#1e293b; font-weight:600; margin-bottom:6px;">"Player frequently plays this opening."</div>
             <div style="font-size:13px; color:#475569; margin-bottom:4px;">Most common response: <b>1...c6 (Caro-Kann)</b></div>
             <div style="font-size:13px; color:#d97706; font-weight:700; margin-bottom:12px;">Score: 59.8%</div>
             
-            <div style="font-size:12px; font-weight:700; color:#059669; text-transform:uppercase; margin-bottom:4px;">Kế hoạch Tác chiến</div>
+            <div style="font-size:12px; font-weight:700; color:#059669; text-transform:uppercase; margin-bottom:4px;">Kế hoạch Hành động</div>
             <div style="font-size:13px; color:#047857; background:#ecfdf5; padding:8px 12px; border-radius:6px;">
-                Guide game into 2.d4 d5 3.f3 (Fantasy Variation) where opponent score drops to 38%.
+                Tập trung nghiên cứu 2.d4 d5 3.f3 (Fantasy Variation) để khai thác lỗ hổng đạt điểm số 38%.
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -395,7 +395,7 @@ def render_landing_page(on_start_analysis):
         st.markdown("""
         <div class="landing-card" style="text-align:center;">
             <div class="step-num">02</div>
-            <div class="card-title">Phân Tích Đối Thủ</div>
+            <div class="card-title">Phân Tích Kỳ Thủ</div>
             <div class="card-desc">Xem cây khai cuộc, thống kê phong độ và hồ sơ nhận định tự động.</div>
         </div>
         """, unsafe_allow_html=True)
@@ -403,16 +403,16 @@ def render_landing_page(on_start_analysis):
         st.markdown("""
         <div class="landing-card" style="text-align:center;">
             <div class="step-num">03</div>
-            <div class="card-title">Chuẩn Bị Trận Đấu</div>
-            <div class="card-desc">Nhận kế hoạch tác chiến chi tiết và xuất báo cáo chuẩn bị.</div>
+            <div class="card-title">Trợ Lí AI Đồng Hành</div>
+            <div class="card-desc">Nhận bản suy luận mở đầu và đàm thoại chiến lược cùng Đại kiện tướng AI.</div>
         </div>
         """, unsafe_allow_html=True)
 
     # 7. CTA SECTION
     st.markdown("""
     <div class="cta-box">
-        <div class="cta-title">Sẵn sàng làm chủ trận đấu tiếp theo?</div>
-        <div style="font-size:15px; color:#475569; margin-bottom:20px;">Bắt đầu phân tích đối thủ ngay bây giờ hoàn toàn miễn phí.</div>
+        <div class="cta-title">Sẵn sàng nâng cao trình độ cờ vua?</div>
+        <div style="font-size:15px; color:#475569; margin-bottom:20px;">Bắt đầu phân tích kỳ thủ ngay bây giờ hoàn toàn miễn phí.</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -425,7 +425,7 @@ def render_landing_page(on_start_analysis):
     st.markdown("""
     <div class="landing-footer">
         <div>
-            <b>♟ Chess Opponent Analyzer</b> — Nền tảng Phân tích & Chuẩn bị Trận đấu Cờ vua Chuyên sâu
+            <b>♟ Chess Player Analyzer</b> — Nền tảng Phân tích & Huấn luyện Cờ vua Thông minh
         </div>
         <div>
             Built with Streamlit & python-chess

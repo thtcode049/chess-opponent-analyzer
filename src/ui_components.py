@@ -377,16 +377,23 @@ def apply_global_styles(theme_mode: str = "light"):
         }
 
         /* Rationale: Style native st.metric cards with uniform card background, border, font sizes, and spacing. */
+        /* Rationale: Style native st.metric cards with uniform card background, border, font sizes, full width, and consistent height. */
         div[data-testid="stMetric"] {
             background-color: var(--bg-surface) !important;
             border: 1px solid var(--border) !important;
             border-radius: 10px !important;
             padding: 14px 16px !important;
             box-shadow: var(--shadow-sm) !important;
+            width: 100% !important;
+            min-height: 104px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            box-sizing: border-box !important;
         }
 
         div[data-testid="stMetricLabel"] {
-            font-size: 12px !important;
+            font-size: 11.5px !important;
             font-weight: 700 !important;
             color: var(--text-secondary) !important;
             text-transform: uppercase !important;
@@ -397,6 +404,12 @@ def apply_global_styles(theme_mode: str = "light"):
             font-size: 1.6rem !important;
             font-weight: 800 !important;
             color: var(--text-primary) !important;
+            line-height: 1.25 !important;
+        }
+
+        div[data-testid="stMetricDelta"] {
+            font-size: 12px !important;
+            font-weight: 600 !important;
         }
 
         /* Rationale: Ensure dataframe container has consistent borders and radius matching design system. */
@@ -451,11 +464,49 @@ def PageHeader(title: str, subtitle: str):
     """, unsafe_allow_html=True)
 
 
+def MetricCard(label: str, value: Any, subtext: str = "", badge_type: str = "neutral"):
+    """
+    Render a beautifully styled, responsive KPI card with 100% uniform height, width, and alignment.
+    badge_type: 'neutral', 'success', 'warning', 'danger', 'primary'
+    """
+    badge_styles = {
+        "success": "background-color: #ECFDF5; color: #059669; border: 1px solid #A7F3D0;",
+        "warning": "background-color: #FFFBEB; color: #D97706; border: 1px solid #FDE68A;",
+        "danger": "background-color: #FEF2F2; color: #DC2626; border: 1px solid #FECACA;",
+        "primary": "background-color: #EEF2FF; color: #4F46E5; border: 1px solid #C7D2FE;",
+        "neutral": "background-color: #F1F5F9; color: #475569; border: 1px solid #E2E8F0;",
+    }
+    b_style = badge_styles.get(badge_type, badge_styles["neutral"])
+    badge_html = f"""<span style="{b_style} font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 9999px; display: inline-block;">{subtext}</span>""" if subtext else """<span style="font-size: 11.5px; opacity: 0;">&nbsp;</span>"""
+    
+    st.markdown(f"""
+    <div style="background-color: var(--bg-surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow-sm); width: 100%; min-height: 104px; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box;">
+        <div style="font-size: 11.5px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">
+            {label}
+        </div>
+        <div style="font-size: 1.65rem; font-weight: 800; color: var(--text-primary); line-height: 1.25; margin: 4px 0;">
+            {value}
+        </div>
+        <div>
+            {badge_html}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
 def InsightCard(icon: str, title: str, text: str):
-    """Render Insight Card sử dụng Streamlit Native Container."""
+    """Render Insight Card sử dụng Streamlit Native Container với chiều cao đồng bộ."""
     with st.container(border=True):
-        st.markdown(f"<div style='font-weight:700; font-size:14px; color:var(--text-primary); margin-bottom:4px;'>{icon} {title}</div>", unsafe_allow_html=True)
-        st.markdown(f"<div style='font-size:13px; color:var(--text-secondary); line-height:1.5;'>{text}</div>", unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="min-height: 76px; display: flex; flex-direction: column; justify-content: flex-start;">
+            <div style="font-weight: 700; font-size: 13.5px; color: var(--text-primary); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                <span>{icon}</span> <span>{title}</span>
+            </div>
+            <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
+                {text}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 def PastelCard(title: str, items: List[Dict[str, Any]], card_type: str = "danger"):

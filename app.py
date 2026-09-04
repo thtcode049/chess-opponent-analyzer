@@ -29,6 +29,8 @@ from src.ai_assistant import (
     build_opponent_ai_context,
     call_gemini_api,
     stream_gemini_response,
+    generate_initial_strategic_briefing,
+    get_followup_prompts,
     AVAILABLE_MODELS,
     GEMINI_MODELS
 )
@@ -36,6 +38,7 @@ from src.ui_components import (
     apply_global_styles,
     AppFooter,
     PageHeader,
+    MetricCard,
     InsightCard,
     PastelCard,
     EmptyState,
@@ -52,7 +55,7 @@ from src.ui_components import (
 
 # Set Page Config
 st.set_page_config(
-    page_title="Chess Opponent Analyzer",
+    page_title="Chess Player Analyzer",
     page_icon="assets/icons/app_logo.svg",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -553,7 +556,7 @@ def render_analysis_section(fen_map: dict, selected_player: str):
     lichess_url = f"https://lichess.org/analysis/standard/{fen_url}"
 
     with col_board:
-        st.caption(f"Đối thủ: **{selected_player}** | Góc nhìn: **{st.session_state.board_orientation.capitalize()}**")
+        st.caption(f"Kỳ thủ: **{selected_player}** | Góc nhìn: **{st.session_state.board_orientation.capitalize()}**")
         
         board_event = render_interactive_board(
             fen=current_fen,
@@ -849,8 +852,8 @@ with st.sidebar:
     <div style="display: flex; align-items: flex-start; gap: 8px; margin-top: 4px; margin-bottom: 8px;">
         <span style="font-size: 24px; line-height: 1; color: #10B981; display: inline-block; margin-top: 2px;">♟</span>
         <div>
-            <div style="font-size: 15px; font-weight: 800; line-height: 1.15; color: #1E293B;">Chess Opponent Analyzer</div>
-            <div style="font-size: 10px; color: #64748B; margin-top: 3px; line-height: 1.25; font-weight: 400;">Hiểu đối thủ. Khai thác dữ liệu.<br>Chuẩn bị tốt hơn.</div>
+            <div style="font-size: 15px; font-weight: 800; line-height: 1.15; color: #1E293B;">Chess Player Analyzer</div>
+            <div style="font-size: 10px; color: #64748B; margin-top: 3px; line-height: 1.25; font-weight: 400;">Phân tích kỳ thủ. Khai thác dữ liệu.<br>Rèn luyện & Chuẩn bị đỉnh cao.</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -862,7 +865,6 @@ with st.sidebar:
         ("Dashboard", "Tổng quan", ":material/dashboard:"),
         ("Analyze", "Phân tích Ván đấu", ":material/analytics:"),
         ("Profile", "Hồ sơ & Phong độ", ":material/person:"),
-        ("Prep", "Kế hoạch Tác chiến", ":material/target:"),
         ("AIAssistant", "Trợ lí AI", ":material/smart_toy:"),
     ]
 
@@ -891,17 +893,33 @@ with st.sidebar:
         st.session_state.active_nav_page = "Import"
         st.rerun()
 
-    # Navigation Group: SETTINGS
+    # Navigation Group: SYSTEM
     st.markdown("<div class='sidebar-nav-group'>HỆ THỐNG</div>", unsafe_allow_html=True)
-    is_active_settings = st.session_state.active_nav_page == "Settings"
     if st.button(
-        "Cài đặt",
-        icon=":material/settings:",
-        key="side_nav_Settings",
+        "Xóa Cache Dữ liệu",
+        icon=":material/delete_sweep:",
+        key="side_nav_clear_cache",
         use_container_width=True,
-        type="primary" if is_active_settings else "secondary"
+        type="secondary",
+        help="Xóa sạch dữ liệu phân tích hiện tại, giải phóng bộ nhớ và quay về màn hình nạp ván đấu"
     ):
-        st.session_state.active_nav_page = "Settings"
+        st.session_state.online_pgn_bytes = None
+        st.session_state.online_pgn_name = ""
+        st.session_state.cached_fen_map = {}
+        st.session_state.cached_fen_map_white = {}
+        st.session_state.cached_fen_map_black = {}
+        st.session_state.analysis_color_filter = "all"
+        st.session_state.cached_stats = {}
+        st.session_state.cached_repertoire = {}
+        st.session_state.cached_filtered_games = []
+        st.session_state.cached_move_evaluations = None
+        st.session_state.cached_deep_profile = None
+        st.session_state.chess_board.reset()
+        st.session_state.move_history = []
+        st.session_state.full_analysis_line = []
+        st.session_state.active_nav_page = "Import"
+        st.cache_data.clear()
+        st.toast("Đã xóa sạch cache dữ liệu!", icon="🗑️")
         st.rerun()
 
     # Sidebar Bottom Context: CURRENT OPPONENT
@@ -929,7 +947,7 @@ with st.sidebar:
                     "Chọn kỳ thủ",
                     options=player_options,
                     index=default_index,
-                    help="Chọn kỳ thủ đối thủ để tập trung phân tích",
+                    help="Chọn kỳ thủ để phân tích (bản thân, học viên hoặc đối thủ)",
                     key="sidebar_global_player_select",
                     label_visibility="collapsed"
                 )
@@ -969,30 +987,6 @@ with st.sidebar:
                     )
 
                 st.caption(f"📊 {len(st.session_state.cached_filtered_games)} ván đấu đã phân tích")
-
-                def get_sidebar_report_md():
-                    c_prof = st.session_state.cached_deep_profile or {}
-                    p_data = generate_actionable_match_preparation(
-                        c_prof,
-                        user_color=st.session_state.user_match_color
-                    )
-                    return generate_markdown_report(
-                        selected_player,
-                        st.session_state.cached_stats,
-                        st.session_state.cached_repertoire,
-                        c_prof.get("rule_insights", []),
-                        p_data,
-                        user_color=st.session_state.user_match_color
-                    )
-
-                st.download_button(
-                    label="📥 Xuất Báo Cáo Kế Hoạch (.md)",
-                    data=get_sidebar_report_md(),
-                    file_name=f"opponent_report_{selected_player.replace(' ', '_').replace(',', '')}.md",
-                    mime="text/markdown",
-                    use_container_width=True,
-                    key="sidebar_download_report_btn"
-                )
         except Exception:
             pass
 
@@ -1022,7 +1016,7 @@ if active_page != st.session_state.previous_nav_page:
 # VIEW 01: DASHBOARD PAGE
 # ==============================================================================
 if active_page == "Dashboard":
-    PageHeader("Tổng quan", "Bảng điều khiển tổng quan hiệu suất và chỉ số trọng yếu của đối thủ")
+    PageHeader("Tổng quan", "Bảng điều khiển tổng quan hiệu suất và chỉ số trọng yếu của kỳ thủ")
 
     if not active_bytes or not selected_player or not st.session_state.cached_stats:
         def on_import_click():
@@ -1044,30 +1038,48 @@ if active_page == "Dashboard":
         # 1. HERO BANNER
         with st.container(border=True):
             st.markdown(f"""
-            **CHESS OPPONENT ANALYTICS**  
-            ### Đối thủ: {selected_player}
-            Tổng số ván đã phân tích: **{stats['total_games']}**
-            """) 
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 2px 0;">
+                <div>
+                    <div style="font-size: 11px; font-weight: 800; letter-spacing: 0.8px; color: var(--text-muted); text-transform: uppercase;">
+                        CHESS PLAYER ANALYTICS
+                    </div>
+                    <div style="font-size: 22px; font-weight: 800; color: var(--text-primary); margin-top: 4px;">
+                        Kỳ thủ: {selected_player}
+                    </div>
+                    <div style="font-size: 13px; color: var(--text-secondary); margin-top: 2px;">
+                        Tổng số ván đã phân tích: <strong style="color:var(--text-primary);">{stats['total_games']}</strong> ván đấu
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                    <div style="background: #F8FAFC; border: 1px solid var(--border); border-radius: 8px; padding: 6px 14px; font-size: 12.5px; color: var(--text-secondary);">
+                        Hiệu suất: <b style="color: var(--primary);">{stats['score_percentage']}%</b>
+                    </div>
+                    <div style="background: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 8px; padding: 6px 14px; font-size: 12.5px; color: #059669;">
+                        Tỉ lệ thắng: <b>{stats['win_rate']}%</b>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True) 
 
         st.markdown("<div style='margin-bottom:16px;'></div>", unsafe_allow_html=True)
 
         # 2. 5 KPI CARDS
         k1, k2, k3, k4, k5 = st.columns(5)
         with k1:
-            st.metric("Tổng ván", stats["total_games"])
+            MetricCard("Tổng ván", stats["total_games"], subtext="100% ván", badge_type="neutral")
         with k2:
-            st.metric("Điểm số", f"{stats['score_percentage']}%")
+            MetricCard("Điểm số", f"{stats['score_percentage']}%", subtext="Hiệu suất chung", badge_type="primary")
         with k3:
-            st.metric("Thắng", stats["wins"], delta=f"{stats['win_rate']}%")
+            MetricCard("Thắng", stats["wins"], subtext=f"{stats['win_rate']}%", badge_type="success")
         with k4:
-            st.metric("Hòa", stats["draws"], delta=f"{stats['draw_rate']}%")
+            MetricCard("Hòa", stats["draws"], subtext=f"{stats['draw_rate']}%", badge_type="warning")
         with k5:
-            st.metric("Thua", stats["losses"], delta=f"{stats['loss_rate']}%", delta_color="inverse")
+            MetricCard("Thua", stats["losses"], subtext=f"{stats['loss_rate']}%", badge_type="danger")
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
         # 3. KEY INSIGHTS (4 CARDS GRID)
-        st.markdown("### Nhận Định Chiến Thuật Nổi Bật")
+        st.markdown("<div style='font-size:18px; font-weight:800; color:var(--text-primary); margin-bottom:12px;'>Nhận Định Chiến Thuật Nổi Bật</div>", unsafe_allow_html=True)
         
         most_played = repertoire.get("most_played", [])
         best_scoring = repertoire.get("best_scoring", [])
@@ -1082,7 +1094,7 @@ if active_page == "Dashboard":
         weak_op = worst_scoring[0]['name'] if worst_scoring else "N/A"
         weak_desc = f"Score thấp nhất {worst_scoring[0]['score_pct']}% ({worst_scoring[0]['games_count']} ván)" if worst_scoring else "Chưa có dữ liệu"
 
-        prep_desc = "Sẵn sàng kế hoạch thi đấu"
+        prep_desc = "Tư vấn chiến lược & Lộ trình rèn luyện AI"
 
         ic1, ic2, ic3, ic4 = st.columns(4)
         with ic1:
@@ -1092,7 +1104,7 @@ if active_page == "Dashboard":
         with ic3:
             InsightCard("📊", "Điểm yếu tiềm tàng", f"<b>{weak_op}</b><br>{weak_desc}")
         with ic4:
-            InsightCard("🎯", "Kế hoạch chuẩn bị", f"<b>Kế hoạch Tác chiến</b><br>{prep_desc}")
+            InsightCard("🧠", "Trợ lí AI Chiến lược", f"<b>Phân tích & Huấn luyện</b><br>{prep_desc}")
 
         st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
 
@@ -1158,8 +1170,8 @@ if active_page == "Dashboard":
                 st.rerun()
 
         with qa3:
-            if st.button("Kế hoạch Tác chiến →", use_container_width=True, key="qa_prep"):
-                st.session_state.active_nav_page = "Prep"
+            if st.button("Trợ lí AI →", use_container_width=True, key="qa_ai", type="primary"):
+                st.session_state.active_nav_page = "AIAssistant"
                 st.rerun()
 
         with qa4:
@@ -1294,10 +1306,10 @@ elif active_page == "Analyze":
 # VIEW 03: PLAYER PROFILE & DEEP ANALYTICS PAGE
 # ==============================================================================
 elif active_page in ["Profile", "Performance"]:
-    PageHeader("Hồ sơ & Phong độ", "Hồ sơ phong cách chơi, cấu trúc Tốt và phân tích độ chính xác theo từng giai đoạn của đối thủ")
+    PageHeader("Hồ sơ & Phong độ", "Hồ sơ phong cách chơi, cấu trúc Tốt và phân tích độ chính xác theo từng giai đoạn của kỳ thủ")
 
     if not active_bytes or not selected_player or not st.session_state.cached_stats:
-        st.info("Vui lòng nạp dữ liệu ván đấu để xem Hồ sơ & Phong độ đối thủ.")
+        st.info("Vui lòng nạp dữ liệu ván đấu để xem Hồ sơ & Phong độ kỳ thủ.")
         if st.button("🚀 Nạp Dữ Liệu Ngay", type="primary", use_container_width=True, key="prof_empty_cta"):
             st.session_state.active_nav_page = "Import"
             st.rerun()
@@ -1718,163 +1730,10 @@ elif active_page in ["Profile", "Performance"]:
 
 
 # ==============================================================================
-# VIEW 06: MATCH PREPARATION PAGE (DECISION SUPPORT)
-# ==============================================================================
-elif active_page == "Prep":
-    PageHeader("Kế hoạch Tác chiến", "Xây dựng kế hoạch thi đấu cụ thể, lựa chọn biến cờ và khai thác điểm yếu đối thủ")
-
-    if not active_bytes or not selected_player or not st.session_state.cached_stats:
-        st.info("Vui lòng nạp dữ liệu ván đấu để xem Kế hoạch tác chiến.")
-        if st.button("🚀 Nạp dữ liệu ngay", type="primary", use_container_width=True, key="prep_empty_cta"):
-            st.session_state.active_nav_page = "Import"
-            st.rerun()
-    else:
-        stats = st.session_state.cached_stats
-        engine = get_stockfish_engine()
-
-        # Retrieve or compute cached deep profile
-        if st.session_state.cached_deep_profile is None:
-            st.session_state.cached_deep_profile = generate_deep_opponent_profile(
-                st.session_state.cached_filtered_games,
-                stats,
-                move_evaluations=st.session_state.cached_move_evaluations
-            )
-
-        deep_profile = st.session_state.cached_deep_profile
-
-        # Control Row
-        col_color, col_down = st.columns([3, 2])
-        
-        with col_color:
-            match_color = st.radio(
-                "Màu quân bạn cầm trong trận đấu tới",
-                options=["white", "black"],
-                index=0 if st.session_state.user_match_color == "white" else 1,
-                format_func=lambda x: "⚪ Cầm Trắng (Bạn đi trước)" if x == "white" else "🖤 Cầm Đen (Bạn đi sau)",
-                horizontal=True,
-                key="user_match_color_radio"
-            )
-            st.session_state.user_match_color = match_color
-
-        actionable_prep = generate_actionable_match_preparation(
-            deep_profile,
-            user_color=match_color
-        )
-
-        with col_down:
-            report_md_prep = generate_markdown_report(
-                selected_player,
-                st.session_state.cached_stats,
-                st.session_state.cached_repertoire,
-                deep_profile.get("rule_insights", []),
-                actionable_prep,
-                user_color=match_color
-            )
-            st.download_button(
-                label="📥 Tải Báo Cáo Kế Hoạch (.md)",
-                data=report_md_prep,
-                file_name=f"match_prep_{selected_player.replace(' ', '_').replace(',', '')}.md",
-                mime="text/markdown",
-                use_container_width=True,
-                key="tab_prep_download_report_btn"
-            )
-
-        st.markdown("<div style='margin-bottom:16px;'></div>", unsafe_allow_html=True)
-
-        # 1. STRONGEST vs WEAKEST OPENING (Concise Decision Cards)
-        st.markdown("### 📚 Khai cuộc Trọng tâm")
-        op_col1, op_col2 = st.columns(2)
-
-        strong_op = actionable_prep.get("strongest_opening")
-        weak_op = actionable_prep.get("weakest_opening")
-
-        with op_col1:
-            with st.container(border=True):
-                st.markdown("##### 🛡️ Khai cuộc Mạnh nhất của đối thủ")
-                if strong_op:
-                    st.markdown(f"**{strong_op['name']}**")
-                    st.caption(f"{strong_op['games_count']} ván • **{strong_op['score_pct']}%** score")
-                    st.warning("Khuyên dùng: Tránh né biến chính mạnh nhất của đối thủ trừ khi đã chuẩn bị kỹ.")
-                else:
-                    st.caption("Chưa phát hiện biến mở đầu vượt trội.")
-
-        with op_col2:
-            with st.container(border=True):
-                st.markdown("##### ⚔️ Khai cuộc Yếu nhất của đối thủ")
-                if weak_op:
-                    st.markdown(f"**{weak_op['name']}**")
-                    st.caption(f"{weak_op['games_count']} ván • **{weak_op['score_pct']}%** score")
-                    st.success("Khuyên dùng: Chủ động hướng trận đấu vào thế cờ đối thủ đạt hiệu suất kém.")
-                else:
-                    st.caption("Chưa phát hiện điểm yếu mở đầu rõ rệt.")
-
-        st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
-
-        # 2. DECISION SUPPORT BLOCKS (Target Structure, Vulnerability Phase, Game Dynamics)
-        b1, b2, b3 = st.columns(3)
-
-        with b1:
-            with st.container(border=True):
-                st.markdown("##### Cấu trúc Tốt mục tiêu")
-                target_st = actionable_prep.get("target_structure")
-                if target_st:
-                    st.markdown(f"### {target_st['name']}")
-                    st.caption(f"Score: **{target_st['score_pct']}%** | {target_st['games_count']} ván")
-                    st.info(f"Đối thủ thi đấu kém ở cấu trúc {target_st['name']}.")
-                    with st.expander("🔍 Bằng chứng"):
-                        st.write(f"Độ tin cậy: {target_st['confidence']['label']}")
-                        st.write(f"Thắng: {target_st['wins']} | Hòa: {target_st['draws']} | Thua: {target_st['losses']}")
-                else:
-                    st.caption("Chưa phát hiện điểm yếu cấu trúc Tốt cụ thể.")
-
-        with b2:
-            with st.container(border=True):
-                st.markdown("##### Giai đoạn Dễ tổn thương")
-                weak_phase = actionable_prep.get("vulnerability_phase")
-                if weak_phase:
-                    st.markdown(f"### {weak_phase.get('phase', '').upper()}")
-                    st.caption(f"Average ACPL: **{weak_phase.get('avg_acpl', 0.0)}**")
-                    st.warning("Độ chính xác đối thủ giảm ở giai đoạn này.")
-                else:
-                    st.caption("Phong độ các giai đoạn tương đối cân bằng.")
-
-        with b3:
-            with st.container(border=True):
-                st.markdown("##### Động lực Thế cờ")
-                st.markdown(f"Tỷ lệ Đánh mất Thế trận (Throw Rate): **{actionable_prep.get('throw_rate', 0.0)}%**")
-                st.markdown(f"Khả năng Lội ngược dòng (Resilience): **{actionable_prep.get('resilience_rate', 0.0)}%**")
-                st.caption("Duy trì áp lực thực chiến dù đang dẫn trước hay bị dẫn điểm.")
-
-        st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
-
-        # 3. YOUR FINAL GAME PLAN (PLAY, TARGET, AVOID)
-        st.markdown("### 📋 Kế Hoạch Tác Chiến Trọng Tâm")
-        g1, g2, g3 = st.columns(3)
-
-        with g1:
-            with st.container(border=True):
-                st.markdown("#### 🟢 Nên Chơi (Play Plan)")
-                for item in actionable_prep.get("play_plan", []):
-                    st.markdown(f"• {item}")
-
-        with g2:
-            with st.container(border=True):
-                st.markdown("#### 🟡 Nhắm Vào (Target Plan)")
-                for item in actionable_prep.get("target_plan", []):
-                    st.markdown(f"• {item}")
-
-        with g3:
-            with st.container(border=True):
-                st.markdown("#### 🔴 Cần Tránh (Avoid Plan)")
-                for item in actionable_prep.get("avoid_plan", []):
-                    st.markdown(f"• {item}")
-
-
-# ==============================================================================
-# VIEW: AI ASSISTANT PAGE (Trò chuyện trực tiếp & Chọn Model)
+# VIEW: AI ASSISTANT PAGE (Trò chuyện trực tiếp & Huấn luyện viên AI)
 # ==============================================================================
 elif active_page == "AIAssistant":
-    PageHeader("Trợ lí AI", "Trò chuyện trực tiếp và hỏi đáp chuyên sâu về đối thủ với AI Đại kiện tướng.")
+    PageHeader("Trợ lí AI", "Đại kiện tướng AI tư vấn chiến lược, phân tích chuyên sâu và đồng hành rèn luyện")
 
     if not active_bytes or not selected_player or not st.session_state.cached_stats:
         def on_import_click():
@@ -1882,8 +1741,8 @@ elif active_page == "AIAssistant":
             st.rerun()
 
         EmptyState(
-            title="Chưa có dữ liệu đối thủ",
-            description="Vui lòng nạp ván đấu của đối thủ từ PGN, Lichess hoặc Chess.com để bắt đầu trò chuyện với Trợ lí AI.",
+            title="Chưa có dữ liệu kỳ thủ",
+            description="Vui lòng nạp ván đấu của kỳ thủ từ PGN, Lichess hoặc Chess.com để bắt đầu trò chuyện với Trợ lí AI.",
             icon="🤖",
             cta_label="Nạp Dữ liệu Ngay",
             cta_key="ai_empty_cta",
@@ -1894,6 +1753,12 @@ elif active_page == "AIAssistant":
             st.session_state.ai_chat_history = []
         if "pending_ai_prompt" not in st.session_state:
             st.session_state.pending_ai_prompt = None
+        if "ai_analysis_mode" not in st.session_state:
+            st.session_state.ai_analysis_mode = "self"
+        if "ai_last_briefed_player" not in st.session_state:
+            st.session_state.ai_last_briefed_player = None
+        if "ai_last_briefed_mode" not in st.session_state:
+            st.session_state.ai_last_briefed_mode = None
 
         stats = st.session_state.cached_stats or {}
         deep_profile = st.session_state.cached_deep_profile or {}
@@ -1942,7 +1807,7 @@ elif active_page == "AIAssistant":
                             progress_callback=_on_ai_prog,
                             existing_evaluations=st.session_state.cached_move_evaluations
                         )
-                        progress_bar.progress(0.95, text="⚡ Đang cập nhật Hồ sơ Đối thủ & Phong cách chơi...")
+                        progress_bar.progress(0.95, text="⚡ Đang cập nhật Hồ sơ Kỳ thủ & Phong cách chơi...")
                         st.session_state.cached_move_evaluations = deep_eval_res.get("move_evaluations", [])
                         st.session_state.cached_deep_profile = generate_deep_opponent_profile(
                             filtered_games,
@@ -1952,19 +1817,19 @@ elif active_page == "AIAssistant":
                         progress_bar.progress(1.0, text="✅ Hoàn tất 100%! Đang làm mới dữ liệu...")
                         st.rerun()
 
-        # Top Bar: Opponent Info + Clear Chat + Model Selector
-        top_c1, top_c2, top_c3 = st.columns([4.5, 3.5, 2.0])
+        # Top Bar: Kỳ thủ Info + Góc nhìn Selector + Mô hình AI + Nút Reset
+        top_c1, top_c2, top_c3, top_c4 = st.columns([3.5, 3.5, 2.5, 1.5])
         with top_c1:
             if analyzed_games_count >= total_filtered_games_count and total_filtered_games_count > 0:
-                cov_badge = f"<span style='display:inline-flex; align-items:center; font-size:11.5px; font-weight:600; color:#15803D; background:#DCFCE7; border:1px solid #86EFAC; padding:2px 8px; border-radius:12px;'>✅ Đã phân tích 100%</span>"
+                cov_badge = f"<span style='display:inline-flex; align-items:center; font-size:11.5px; font-weight:600; color:#15803D; background:#DCFCE7; border:1px solid #86EFAC; padding:2px 8px; border-radius:12px;'>✅ 100% Eval</span>"
             else:
-                cov_badge = f"<span style='display:inline-flex; align-items:center; font-size:11.5px; font-weight:600; color:#B45309; background:#FEF3C7; border:1px solid #FCD34D; padding:2px 8px; border-radius:12px;'>⚠️ Dữ liệu mẫu ({analyzed_games_count}/{total_filtered_games_count} ván)</span>"
+                cov_badge = f"<span style='display:inline-flex; align-items:center; font-size:11.5px; font-weight:600; color:#B45309; background:#FEF3C7; border:1px solid #FCD34D; padding:2px 8px; border-radius:12px;'>⚠️ Mẫu ({analyzed_games_count}/{total_filtered_games_count})</span>"
 
             st.markdown(
                 f"""
                 <div style='display:flex; align-items:center; gap:8px; height:38px;'>
-                    <span style='font-size:13.5px; font-weight:600; color:#64748B;'>Đối thủ:</span>
-                    <span style='font-size:15.5px; font-weight:700; color:#0F172A; font-family:Inter, sans-serif;'>
+                    <span style='font-size:13px; font-weight:600; color:#64748B;'>Kỳ thủ:</span>
+                    <span style='font-size:15px; font-weight:700; color:#0F172A; font-family:Inter, sans-serif;'>
                         ♟️ {selected_player}
                     </span>
                     {cov_badge}
@@ -1972,7 +1837,26 @@ elif active_page == "AIAssistant":
                 """,
                 unsafe_allow_html=True
             )
+
         with top_c2:
+            current_mode = st.session_state.ai_analysis_mode
+            mode_options = ["self", "opponent"]
+            selected_mode = st.radio(
+                "Mục đích phân tích",
+                options=mode_options,
+                index=mode_options.index(current_mode),
+                format_func=lambda x: "👤 Bản thân / Học viên" if x == "self" else "🎯 Đối thủ sắp gặp",
+                horizontal=True,
+                key="ai_mode_radio_selector",
+                label_visibility="collapsed"
+            )
+            if selected_mode != current_mode:
+                st.session_state.ai_analysis_mode = selected_mode
+                st.session_state.ai_chat_history = []
+                st.session_state.ai_last_briefed_mode = None
+                st.rerun()
+
+        with top_c3:
             model_options = list(AVAILABLE_MODELS.keys())
             model_display = [AVAILABLE_MODELS[k] for k in model_options]
             def_idx = 0
@@ -1984,35 +1868,63 @@ elif active_page == "AIAssistant":
                 label_visibility="collapsed"
             )
             selected_model = model_options[model_display.index(selected_display)]
-        with top_c3:
-            if st.button("🗑️ Xóa Lịch sử Chat", use_container_width=True, key="clear_ai_chat_btn"):
+
+        with top_c4:
+            if st.button("🗑️ Làm mới", use_container_width=True, key="clear_ai_chat_btn", help="Khởi tạo lại bản suy luận mở đầu"):
                 st.session_state.ai_chat_history = []
                 st.session_state.pending_ai_prompt = None
+                st.session_state.ai_last_briefed_player = None
+                st.session_state.ai_last_briefed_mode = None
                 st.rerun()
+
+        # Tự động tạo Bản Suy luận Chiến lược Mở đầu (Proactive Strategic Briefing)
+        cur_mode = st.session_state.ai_analysis_mode
+        needs_briefing = (
+            not st.session_state.ai_chat_history or
+            st.session_state.ai_last_briefed_player != selected_player or
+            st.session_state.ai_last_briefed_mode != cur_mode
+        )
+        if needs_briefing:
+            briefing_text = generate_initial_strategic_briefing(
+                deep_profile=deep_profile,
+                stats=stats,
+                selected_player=selected_player,
+                mode=cur_mode
+            )
+            st.session_state.ai_chat_history = [{"role": "assistant", "content": briefing_text}]
+            st.session_state.ai_last_briefed_player = selected_player
+            st.session_state.ai_last_briefed_mode = cur_mode
 
         st.markdown("<div style='margin-bottom:12px;'></div>", unsafe_allow_html=True)
 
         # Chat Message History Container
         chat_container = st.container()
         with chat_container:
-            if not st.session_state.ai_chat_history:
-                st.markdown("""
-                <div style='background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:20px; text-align:center; color:#64748B;'>
-                    <div style='font-size:32px; margin-bottom:8px;'>🤖</div>
-                    <div style='font-weight:700; font-size:15px; color:#0F172A;'>Trợ lí AI Đại kiện tướng đã sẵn sàng!</div>
-                    <div style='font-size:13px; margin-top:4px;'>Hãy đặt câu hỏi bên dưới để phân tích điểm yếu, phong cách và cách khắc chế đối thủ.</div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                for msg in st.session_state.ai_chat_history:
-                    role = msg["role"]
-                    content = msg["content"]
-                    avatar = "♟️" if role == "user" else "🤖"
-                    with st.chat_message(role, avatar=avatar):
-                        st.markdown(content)
+            for msg in st.session_state.ai_chat_history:
+                role = msg["role"]
+                content = msg["content"]
+                avatar = "♟️" if role == "user" else "🤖"
+                with st.chat_message(role, avatar=avatar):
+                    st.markdown(content)
+
+            # Nếu chỉ mới có bản Briefing mở đầu, hiển thị các nút Gợi ý Đào sâu 1-Click
+            if len(st.session_state.ai_chat_history) == 1:
+                st.markdown("<div style='margin-top:14px; margin-bottom:8px; font-size:12.5px; font-weight:700; color:#475569;'>💡 GỢI Ý HỎI ĐÀO SÂU (BẤM ĐỂ HỎI NGAY):</div>", unsafe_allow_html=True)
+                chips = get_followup_prompts(cur_mode)
+                chip_cols = st.columns(len(chips))
+                for i, chip_prompt in enumerate(chips):
+                    with chip_cols[i]:
+                        if st.button(chip_prompt, key=f"ai_chip_{i}", use_container_width=True):
+                            st.session_state.pending_ai_prompt = chip_prompt
+                            st.rerun()
 
         # Chat Input
-        user_prompt = st.chat_input("Hỏi bất kỳ điều gì về đối thủ (vd: Điểm yếu khai cuộc lớn nhất là gì?)...", key="ai_chat_input_box")
+        input_placeholder = (
+            "Hỏi Trợ lí AI về điểm yếu, bài tập rèn luyện hoặc kế hoạch nâng cao trình độ..."
+            if cur_mode == "self"
+            else "Hỏi Trợ lí AI về cách khai thác điểm yếu, bẫy khai cuộc hoặc khắc chế đối thủ..."
+        )
+        user_prompt = st.chat_input(input_placeholder, key="ai_chat_input_box")
 
         active_prompt = None
         if user_prompt:
@@ -2033,7 +1945,7 @@ elif active_page == "AIAssistant":
                     msg_slot.markdown(
                         """
                         <div class='ai-thinking-indicator'>
-                            <span>🤖 AI đang suy nghĩ</span>
+                            <span>🤖 AI đang suy luận chiến lược</span>
                             <span class='ai-thinking-dots'>
                                 <span></span><span></span><span></span>
                             </span>
@@ -2059,9 +1971,12 @@ elif active_page == "AIAssistant":
                         stats=stats,
                         fen_map_white=fen_w,
                         fen_map_black=fen_b,
-                        selected_player=selected_player
+                        selected_player=selected_player,
+                        mode=cur_mode
                     )
                     full_response = msg_slot.write_stream(stream_gen)
+                    if not full_response:
+                        full_response = "⚠️ Không nhận được phản hồi từ mô hình AI. Vui lòng kiểm tra lại kết nối mạng hoặc thử lại với câu hỏi khác."
                     st.session_state.ai_chat_history.append({"role": "assistant", "content": full_response})
 
             st.rerun()
@@ -2347,40 +2262,6 @@ elif active_page == "Import":
 
 
 # ==============================================================================
-# VIEW 08: SETTINGS PAGE
-# ==============================================================================
 elif active_page == "Settings":
-    PageHeader("Cài đặt", "Cấu hình ứng dụng và tùy chọn hiển thị.")
-
-    with st.container(border=True):
-        st.markdown("#### Tùy chọn Giao diện")
-        st.caption("Chế độ hiển thị màu sắc và giao diện chuẩn.")
-        st.selectbox(
-            "Theme Mode",
-            options=["Light (Sáng - Mặc định)"],
-            index=0,
-            key="settings_page_theme_selector",
-            label_visibility="collapsed"
-        )
-
-    st.markdown("<div style='margin-bottom:16px;'></div>", unsafe_allow_html=True)
-
-    with st.container(border=True):
-        st.markdown("#### Quản lý Dữ liệu")
-        st.caption("Xóa cache dữ liệu hiện tại và reset bàn cờ.")
-        if st.button("Xóa Cache Dữ Liệu", icon=":material/delete:", key="reset_cache_btn"):
-            st.session_state.online_pgn_bytes = None
-            st.session_state.online_pgn_name = ""
-            st.session_state.cached_fen_map = {}
-            st.session_state.cached_fen_map_white = {}
-            st.session_state.cached_fen_map_black = {}
-            st.session_state.analysis_color_filter = "all"
-            st.session_state.cached_stats = {}
-            st.session_state.cached_repertoire = {}
-            st.session_state.cached_filtered_games = []
-            st.session_state.chess_board.reset()
-            st.session_state.move_history = []
-            st.session_state.full_analysis_line = []
-            st.session_state.active_nav_page = "Import"
-            st.success("Đã xóa cache dữ liệu.")
-            st.rerun()
+    st.session_state.active_nav_page = "Dashboard"
+    st.rerun()

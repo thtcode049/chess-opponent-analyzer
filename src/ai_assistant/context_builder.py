@@ -83,7 +83,7 @@ def build_opponent_ai_context(
     stats: Optional[Dict[str, Any]],
     fen_map_white: Optional[Dict[str, Any]] = None,
     fen_map_black: Optional[Dict[str, Any]] = None,
-    selected_player: str = "Đối thủ",
+    selected_player: str = "Kỳ thủ",
     analyzed_games_count: Optional[int] = None,
     total_games_count: Optional[int] = None
 ) -> str:
@@ -95,7 +95,7 @@ def build_opponent_ai_context(
         return "Hiện chưa có dữ liệu phân tích nào được nạp."
 
     ctx_parts = []
-    ctx_parts.append(f"# BÁO CÁO DỮ LIỆU THỰC NGHIỆM ĐỐI THỦ: {selected_player.upper()}")
+    ctx_parts.append(f"# BÁO CÁO DỮ LIỆU THỰC NGHIỆM KỲ THỦ: {selected_player.upper()}")
     ctx_parts.append("*(Nguồn dữ liệu: 100% trích xuất từ phân tích toán học & Profile, không chứa suy diễn chủ quan)*\n")
 
     if analyzed_games_count is not None and total_games_count is not None and total_games_count > analyzed_games_count:
@@ -126,7 +126,7 @@ def build_opponent_ai_context(
     ctx_parts.append("\n## III. DANH MỤC KHAI CUỘC CHI TIẾT (REPERTOIRE)")
     
     w_rep = rep.get("white_repertoire", [])
-    ctx_parts.append("### 1. Khai cuộc khi đối thủ cầm TRẮNG:")
+    ctx_parts.append("### 1. Khai cuộc khi kỳ thủ cầm TRẮNG:")
     if w_rep:
         for item in w_rep[:8]:
             ctx_parts.append(
@@ -136,7 +136,7 @@ def build_opponent_ai_context(
         ctx_parts.append("- Chưa có đủ dữ liệu khai cuộc cầm Trắng.")
 
     b_rep = rep.get("black_repertoire", [])
-    ctx_parts.append("\n### 2. Khai cuộc khi đối thủ cầm ĐEN:")
+    ctx_parts.append("\n### 2. Khai cuộc khi kỳ thủ cầm ĐEN:")
     if b_rep:
         for item in b_rep[:8]:
             ctx_parts.append(
@@ -187,3 +187,6 @@ def build_opponent_ai_context(
         ctx_parts.append("- Chưa phát hiện cấu trúc Tốt đặc trưng.")
 
     return "\n".join(ctx_parts)
+
+
+build_player_ai_context = build_opponent_ai_context

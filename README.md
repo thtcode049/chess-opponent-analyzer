@@ -1,12 +1,12 @@
-# Chess Opponent Analyzer
+# Chess Player Analyzer
 
-> Systems for Analyzing Game Data to Support Chess Match Preparation  
-> *Hệ thống phân tích dữ liệu ván đấu hỗ trợ chuẩn bị thi đấu cờ vua*
+> Systems for Analyzing Game Data & AI Strategic Coaching  
+> *Hệ thống phân tích dữ liệu ván đấu và Trợ lí AI Huấn luyện & Chuẩn bị chiến thuật cờ vua*
 
 ---
 
 ## 📌 Tổng quan dự án (Overview)
-**Chess Opponent Analyzer** là ứng dụng Web giúp các kỳ thủ cờ vua phân tích dữ liệu lịch sử thi đấu của đối thủ từ file PGN. Hệ thống tự động trích xuất Repertoire khai cuộc, cây nước đi (Opening Tree), hiệu suất thi đấu (Win rate theo màu quân) và đề xuất các thông tin chuẩn bị trước trận đấu.
+**Chess Player Analyzer** là ứng dụng Web giúp phân tích toàn diện dữ liệu lịch sử thi đấu cờ vua từ file PGN hoặc Lichess/Chess.com. Hệ thống phục vụ đa mục đích: **Tự phân tích bản thân (Self-Improvement)**, **Huấn luyện học viên (Coaching)**, hoặc **Chuẩn bị đối đầu với đối thủ (Match Prep)**. Hệ thống tự động trích xuất Repertoire khai cuộc, cây nước đi (Opening Tree), độ chính xác từng giai đoạn theo chuẩn Stockfish, cấu trúc Tốt, phong cách thi đấu và đồng hành cùng **Trợ lí AI Đại kiện tướng** đưa ra bản tóm tắt chiến lược mở đầu chủ động.
 
 ---
 
