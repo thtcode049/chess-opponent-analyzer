@@ -281,27 +281,3 @@ Dự án sở hữu bộ kiểm thử tự động toàn diện gồm **13 tệp
 
 ---
 
-## 8. MẪU PROMPT GỢI Ý KHI ĐƯA TÀI LIỆU VÀO CHATGPT
-
-Nếu bạn muốn nhờ ChatGPT viết các tài liệu chuyên sâu khác (như chương Luận văn, Slide thuyết trình, hoặc Bộ câu hỏi phản biện bảo vệ tốt nghiệp), bạn có thể copy toàn bộ nội dung file này và đính kèm prompt sau:
-
-### 📝 Prompt mẫu 1: Nhờ viết Chương Báo Cáo / Luận Văn Tốt Nghiệp
-```text
-Dưới đây là tài liệu đặc tả kỹ thuật và kiến trúc hoàn chỉnh của dự án Khóa luận tốt nghiệp: "Chess Player Analyzer". 
-Dựa vào tài liệu này, hãy viết giúp tôi [Chương 3: Thiết kế và Hiện thực Hệ thống] (hoặc toàn bộ Báo cáo Tốt nghiệp) với văn phong học thuật chuẩn mực của ngành Công nghệ Thông tin / Khoa học Dữ liệu. Trình bày chi tiết cơ sở lý thuyết, kiến trúc các tầng, thuật toán Co ngót Bayes và quy trình hoạt động của từng module.
-```
-
-### 📝 Prompt mẫu 2: Nhờ soạn Kịch Bản Thuyết Trình & Slide Bảo Vệ
-```text
-Dưới đây là báo cáo toàn diện về dự án "Chess Player Analyzer". 
-Hãy đóng vai trò là một sinh viên xuất sắc đang chuẩn bị bảo vệ khóa luận tốt nghiệp trước hội đồng. Hãy soạn cho tôi:
-1. Dàn ý 15 slide thuyết trình cô đọng, nêu bật vấn đề, giải pháp, công nghệ và kết quả.
-2. Kịch bản lời nói (Speech Script) trong vòng 10-12 phút thuyết trình tự tin, thuyết phục.
-```
-
-### 📝 Prompt mẫu 3: Chuẩn bị Bộ Câu Hỏi & Trả Lời Phản Biện Của Hội Đồng
-```text
-Dựa trên kiến trúc và công nghệ của dự án "Chess Player Analyzer" dưới đây, hãy đóng vai trò là Chủ tịch Hội đồng chấm khóa luận tốt nghiệp:
-1. Đặt ra 10 câu hỏi hóc búa nhất về mặt kỹ thuật (về Stockfish, Bayesian Shrinkage, Transposition EPD, AI Hallucination, Streamlit State Management).
-2. Soạn sẵn câu trả lời mẫu xuất sắc, chuyên nghiệp và ngắn gọn cho từng câu hỏi để tôi tự tin bảo vệ.
-```
