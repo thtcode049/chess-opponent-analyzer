@@ -7,7 +7,7 @@ theo 2 góc nhìn: Bản thân / Học viên (Self / Coaching) hoặc Đối th�
 """
 
 from typing import Dict, Any, List, Optional
-from src.match_prep import rank_strongest_items, rank_weakest_items
+from src.strategy import rank_strongest_items, rank_weakest_items
 
 
 def generate_initial_strategic_briefing(

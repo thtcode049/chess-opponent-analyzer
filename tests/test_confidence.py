@@ -15,7 +15,7 @@ Kiểm tra các yêu cầu:
 """
 
 import pytest
-from src.analysis.statistical_confidence import (
+from src.analysis.confidence import (
     calculate_adjusted_score,
     calculate_delta,
     assess_performance,
@@ -35,7 +35,7 @@ from src.analysis.statistical_confidence import (
 )
 from src.player_profile import analyze_opening_repertoire
 from src.analysis.pawn_structure import analyze_structural_performance
-from src.match_prep import generate_match_preparation, generate_actionable_match_preparation
+from src.strategy import generate_match_preparation, generate_actionable_match_preparation
 
 
 def test_bayes_shrinkage_small_vs_large_sample():

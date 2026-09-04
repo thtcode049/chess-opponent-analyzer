@@ -3,7 +3,7 @@ from src.pgn_parser import parse_pgn, filter_games_by_player
 from src.statistics import calculate_game_stats
 from src.opening_tree import build_opening_tree
 from src.player_profile import analyze_opening_repertoire
-from src.match_prep import generate_match_preparation
+from src.strategy import generate_match_preparation
 
 
 def test_generate_match_preparation_white():

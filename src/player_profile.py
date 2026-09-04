@@ -10,7 +10,7 @@ from src.ui_components import get_icon_svg
 from src.utils import determine_game_outcome
 
 
-from src.analysis.statistical_confidence import (
+from src.analysis.confidence import (
     calculate_adjusted_score,
     calculate_delta,
     assess_performance,
@@ -320,5 +320,10 @@ def generate_deep_opponent_profile(
         "overall_acpl": overall_acpl,
         "overall_analyzed_moves": overall_analyzed_moves
     }
+
+
+# Alias chuẩn hóa theo định hướng phân tích kỳ thủ (Chess Player Analyzer)
+generate_deep_player_profile = generate_deep_opponent_profile
+
 
 

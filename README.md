@@ -48,28 +48,50 @@ pytest
 
 ## 📂 Cấu trúc dự án (Project Structure)
 ```text
-chess-opponent-analyzer/
+chess-player-analyzer/
 │
-├── app.py                      # Giao diện Streamlit chính
+├── app.py                      # Giao diện Web Streamlit chính
 ├── requirements.txt            # Danh sách thư viện phụ thuộc
 ├── README.md                   # Tài liệu hướng dẫn dự án
-├── .gitignore                  # Cấu hình bỏ qua file trong Git
 │
-├── data/                       # Dữ liệu ván đấu mẫu và dữ liệu đã xử lý
-│   ├── sample.pgn
-│   └── processed/
+├── data/                       # Dữ liệu ván đấu mẫu
+│   └── sample.pgn
 │
 ├── src/                        # Các module xử lý nghiệp vụ chính
-│   ├── __init__.py
-│   ├── pgn_parser.py           # Module đọc & parse file PGN
+│   ├── ai_assistant/           # Trợ lí AI Chiến lược & Huấn luyện (Gemini & Offline Engine)
+│   │   ├── briefing.py         # Bản tóm tắt chiến lược mở đầu chủ động
+│   │   ├── context_builder.py  # Xây dựng ngữ cảnh phân tích cho AI
+│   │   ├── gemini_client.py    # Kết nối API Google Gemini
+│   │   └── local_expert.py     # Bộ máy phân tích cờ vua offline
+│   ├── analysis/               # Phân tích cờ vua nâng cao
+│   │   ├── confidence.py       # Co ngót Bayes (Bayesian Shrinkage) & Đánh giá mức độ tin cậy
+│   │   ├── game_dynamics.py    # Động lực học ván đấu & Tâm lý thời gian
+│   │   ├── pawn_structure.py   # Phân loại & hiệu suất cấu trúc Tốt (Carlsbad, Isolani...)
+│   │   ├── phase_analysis.py   # Phân tích sai số ACPL theo 3 giai đoạn cờ
+│   │   ├── simplification.py   # Xu hướng đổi quân & đơn giản hóa thế trận
+│   │   └── style_metrics.py    # Đo lường phong cách (Tấn công, Chiến thuật, Rủi ro...)
+│   ├── engine/                 # Động cơ Stockfish & Hệ thống đánh giá nước đi
+│   ├── pgn_parser.py           # Module đọc & chuẩn hóa dữ liệu PGN
 │   ├── opening_tree.py         # Module xây dựng cây khai cuộc (Opening Tree)
-│   ├── statistics.py           # Module tính toán thống kê (Win rate, Score)
-│   ├── player_profile.py       # Module tổng hợp hồ sơ đối thủ
-│   ├── recommendations.py     # Module đề xuất chiến thuật thi đấu
-│   └── utils.py                # Module tiện ích dùng chung
+│   ├── statistics.py           # Module tính toán thống kê cơ bản (Win rate, Score)
+│   ├── player_profile.py       # Module tổng hợp hồ sơ kỳ thủ chuyên sâu
+│   ├── strategy.py             # Module xếp hạng điểm mạnh / điểm yếu & chiến lược thi đấu
+│   ├── game_fetcher.py         # Module nạp ván đấu từ Lichess & Chess.com API
+│   ├── ui_components.py        # Các thành phần UI dùng chung (MetricCard, InsightCard...)
+│   └── utils.py                # Tiện ích bổ trợ dùng chung
 │
-└── tests/                      # Unit tests kiểm thử các module
-    ├── test_pgn_parser.py
+└── tests/                      # Bộ kiểm thử tự động (Unit Tests)
+    ├── test_accuracy_system.py
+    ├── test_ai_assistant.py
+    ├── test_analysis.py
+    ├── test_confidence.py
+    ├── test_engine.py
+    ├── test_game_fetcher.py
+    ├── test_lichess_oauth.py
     ├── test_opening_tree.py
-    └── test_statistics.py
+    ├── test_pgn_parser.py
+    ├── test_player_profile.py
+    ├── test_statistics.py
+    ├── test_strategy.py
+    └── test_style_profile.py
 ```

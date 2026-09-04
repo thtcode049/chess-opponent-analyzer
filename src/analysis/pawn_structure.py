@@ -83,7 +83,7 @@ def detect_pawn_structure(board: chess.Board) -> Dict[str, Any]:
     return {"structure": "Standard", "name": "Standard Structure", "side": "both", "square": ""}
 
 
-from src.analysis.statistical_confidence import (
+from src.analysis.confidence import (
     enrich_performance_item,
     rank_weakest_items,
     ASSESSMENT_CONFIRMED_WEAKNESS,

@@ -15,7 +15,7 @@ from src.analysis.pawn_structure import detect_pawn_structure, analyze_structura
 from src.analysis.game_dynamics import analyze_game_dynamics
 from src.analysis.simplification import analyze_simplification_performance
 from src.analysis.confidence import get_confidence_level
-from src.match_prep import generate_actionable_match_preparation
+from src.strategy import generate_actionable_match_preparation
 
 
 def test_confidence_level():

@@ -1,5 +1,5 @@
 import pytest
-from src.online_fetcher import (
+from src.game_fetcher import (
     fetch_lichess_games,
     fetch_chesscom_games,
     _normalize_lichess_perf_types,

@@ -114,7 +114,7 @@ def analyze_opponent_responses(
     }
 
 
-from src.analysis.statistical_confidence import (
+from src.analysis.confidence import (
     rank_weakest_items,
     rank_strongest_items,
     ASSESSMENT_CONFIRMED_WEAKNESS,

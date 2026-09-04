@@ -10,10 +10,8 @@ from src.statistics import calculate_game_stats
 from src.opening_tree import build_opening_tree, get_position_details
 from src.board_component import render_interactive_board
 from src.move_history_component import render_move_history_component
-from src.player_profile import analyze_opening_repertoire, generate_player_insights, generate_deep_opponent_profile
-from src.match_prep import generate_match_preparation, generate_actionable_match_preparation
-from src.report_generator import generate_markdown_report
-from src.online_fetcher import fetch_lichess_games, fetch_chesscom_games
+from src.player_profile import analyze_opening_repertoire, generate_deep_opponent_profile
+from src.game_fetcher import fetch_lichess_games, fetch_chesscom_games
 from src.lichess_oauth import (
     generate_pkce_pair,
     build_lichess_auth_url,
@@ -24,15 +22,13 @@ from src.lichess_oauth import (
     DEFAULT_REDIRECT_URI
 )
 from src.engine.stockfish_engine import StockfishEngine
-from src.engine.evaluator import batch_analyze_games, get_comprehensive_move_evaluations, parallel_batch_analyze_games
+from src.engine.evaluator import get_comprehensive_move_evaluations, parallel_batch_analyze_games
 from src.ai_assistant import (
-    build_opponent_ai_context,
-    call_gemini_api,
+    build_player_ai_context,
     stream_gemini_response,
     generate_initial_strategic_briefing,
     get_followup_prompts,
     AVAILABLE_MODELS,
-    GEMINI_MODELS
 )
 from src.ui_components import (
     apply_global_styles,
@@ -49,7 +45,6 @@ from src.ui_components import (
     COLOR_LOSS,
     COLOR_WARNING,
     COLOR_PRIMARY,
-    COLOR_BLUE,
     get_icon_svg,
 )
 
@@ -1953,7 +1948,7 @@ elif active_page == "AIAssistant":
                         """,
                         unsafe_allow_html=True
                     )
-                    context_data = build_opponent_ai_context(
+                    context_data = build_player_ai_context(
                         deep_profile=deep_profile,
                         stats=stats,
                         fen_map_white=fen_w,
